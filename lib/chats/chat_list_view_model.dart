@@ -1251,8 +1251,9 @@ class ChatListViewModel extends ChangeNotifier {
               await _ingestRawChat(raw);
               if (_disposed) return;
               _applyChatCommunityId(chatId, communityId);
+              // Membership resolves after ingestion. Keep the server's grant
+              // even before the chat moves into the non-member directory.
               if (entry.boolean('can_view_history') == true &&
-                  _communityDirectoryChats.containsKey(chatId) &&
                   _viewableCommunityChatIds.add(chatId)) {
                 _scheduleResort();
               } else if (_communityDirectoryChats.containsKey(chatId)) {
