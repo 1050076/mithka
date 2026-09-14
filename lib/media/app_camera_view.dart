@@ -35,6 +35,8 @@ class AppCameraView extends StatefulWidget {
     super.key,
     this.allowVideo = true,
     this.allowGallery = true,
+    @visibleForTesting this.availableCamerasForTesting,
+    @visibleForTesting this.controllerForTesting,
   });
 
   /// Whether holding the shutter records video. Off for the composer, whose
@@ -44,6 +46,10 @@ class AppCameraView extends StatefulWidget {
   /// Whether the bottom bar offers a jump to the picker. Off where the caller
   /// has no gallery route to hand the result to.
   final bool allowGallery;
+
+  final Future<List<CameraDescription>> Function()? availableCamerasForTesting;
+  final CameraController Function(CameraDescription camera, bool enableAudio)?
+  controllerForTesting;
 
   @override
   State<AppCameraView> createState() => _AppCameraViewState();
@@ -71,8 +77,10 @@ class _AppCameraViewState extends State<AppCameraView>
   }
 
   Future<void> _loadCameras() async {
+    setState(() => _initializing = true);
     try {
-      final cameras = await availableCameras();
+      final cameras =
+          await (widget.availableCamerasForTesting ?? availableCameras)();
       if (!mounted) return;
       if (cameras.isEmpty) throw StateError('No camera is available.');
       _cameras = cameras;
@@ -95,7 +103,13 @@ class _AppCameraViewState extends State<AppCameraView>
       _initializing = true;
     });
     await _disposeController();
-    final controller = CameraController(_cameras[index], ResolutionPreset.high);
+    final controller =
+        widget.controllerForTesting?.call(_cameras[index], widget.allowVideo) ??
+        CameraController(
+          _cameras[index],
+          ResolutionPreset.high,
+          enableAudio: widget.allowVideo,
+        );
     _controller = controller;
     try {
       await controller.initialize();
@@ -218,10 +232,13 @@ class _AppCameraViewState extends State<AppCameraView>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         appCameraShouldRetryOnResume(recording: _recording)) {
+      if (_initializing) return;
       // A permission grant made in system settings leaves the old controller
       // allocated but uninitialized. Retry even when that stale controller is
-      // still present; the old guard otherwise leaves the preview black.
-      unawaited(_initializeCamera(_cameraIndex));
+      // still present, including enumeration if the first attempt found none.
+      unawaited(
+        _cameras.isEmpty ? _loadCameras() : _initializeCamera(_cameraIndex),
+      );
       return;
     }
     final controller = _controller;
