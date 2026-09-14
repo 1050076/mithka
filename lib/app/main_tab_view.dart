@@ -1305,6 +1305,7 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
             chatsProvider: archivedSelection.chatsProvider,
             selectedChatId: _selectedMessageChat?.chatId,
             onClearUnread: archivedSelection.onClearUnread,
+            onUnarchive: archivedSelection.onUnarchive,
             onBack: () => setState(() => _selectedArchivedChats = null),
             onChatSelected: (chat) {
               final nextSelection = ChatListSelection.fromChat(chat);

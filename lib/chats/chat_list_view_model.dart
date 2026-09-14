@@ -615,6 +615,17 @@ class ChatListViewModel extends ChangeNotifier {
     });
   }
 
+  /// Moves an archived chat back to the main list without deleting history.
+  void unarchive(ChatSummary chat) {
+    _client
+        .query({
+          '@type': 'addChatToList',
+          'chat_id': chat.id,
+          'chat_list': {'@type': 'chatListMain'},
+        })
+        .catchError((Object _) => <String, dynamic>{});
+  }
+
   void toggleMute(ChatSummary chat) {
     final newValue = !chat.isMuted;
     final id = chat.id;

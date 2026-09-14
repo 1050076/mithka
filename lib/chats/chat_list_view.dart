@@ -215,11 +215,13 @@ class ArchivedChatListSelection {
     required this.chatsProvider,
     required this.updates,
     required this.onClearUnread,
+    this.onUnarchive,
   });
 
   final List<ChatSummary> Function() chatsProvider;
   final Listenable updates;
   final ValueChanged<ChatSummary> onClearUnread;
+  final ValueChanged<ChatSummary>? onUnarchive;
 }
 
 bool chatListPreviewSupportsQuickReply(ChatSummary chat) =>
@@ -2891,6 +2893,7 @@ class _ChatListViewState extends State<ChatListView>
           chatsProvider: () => _model.archived,
           updates: _model,
           onClearUnread: _model.markRead,
+          onUnarchive: _model.unarchive,
         ),
       );
       return;
@@ -2901,6 +2904,7 @@ class _ChatListViewState extends State<ChatListView>
           updates: _model,
           chatsProvider: () => _model.archived,
           onClearUnread: _model.markRead,
+          onUnarchive: _model.unarchive,
         ),
       ),
     );

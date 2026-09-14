@@ -78,6 +78,7 @@ class LiveArchivedChatsView extends StatelessWidget {
     required this.updates,
     required this.chatsProvider,
     this.onClearUnread,
+    this.onUnarchive,
     this.onBack,
     this.onChatSelected,
     this.selectedChatId,
@@ -86,6 +87,7 @@ class LiveArchivedChatsView extends StatelessWidget {
   final Listenable updates;
   final List<ChatSummary> Function() chatsProvider;
   final ValueChanged<ChatSummary>? onClearUnread;
+  final ValueChanged<ChatSummary>? onUnarchive;
   final VoidCallback? onBack;
   final ValueChanged<ChatSummary>? onChatSelected;
   final int? selectedChatId;
@@ -97,6 +99,7 @@ class LiveArchivedChatsView extends StatelessWidget {
       builder: (context, _) => ArchivedChatsView(
         chats: chatsProvider(),
         onClearUnread: onClearUnread,
+        onUnarchive: onUnarchive,
         onBack: onBack,
         onChatSelected: onChatSelected,
         selectedChatId: selectedChatId,
@@ -110,12 +113,14 @@ class ArchivedChatsView extends StatelessWidget {
     super.key,
     required this.chats,
     this.onClearUnread,
+    this.onUnarchive,
     this.onBack,
     this.onChatSelected,
     this.selectedChatId,
   });
   final List<ChatSummary> chats;
   final ValueChanged<ChatSummary>? onClearUnread;
+  final ValueChanged<ChatSummary>? onUnarchive;
   final VoidCallback? onBack;
   final ValueChanged<ChatSummary>? onChatSelected;
   final int? selectedChatId;
@@ -137,15 +142,14 @@ class ArchivedChatsView extends StatelessWidget {
               itemCount: chats.length,
               itemBuilder: (context, i) {
                 final chat = chats[i];
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+                return _ArchivedChatSwipeRow(
+                  chat: chat,
+                  selected: chat.id == selectedChatId,
                   onTap: () => _openChat(context, chat),
-                  child: ChatRowView(
-                    chat: chat,
-                    archived: true,
-                    selected: chat.id == selectedChatId,
-                    onClearUnread: () => onClearUnread?.call(chat),
-                  ),
+                  onClearUnread: () => onClearUnread?.call(chat),
+                  onUnarchive: onUnarchive == null
+                      ? null
+                      : () => onUnarchive!(chat),
                 );
               },
             ),
@@ -165,6 +169,88 @@ class ArchivedChatsView extends StatelessWidget {
       context,
       AppChatPageRoute(
         builder: (_) => ChatView(chatId: chat.id, title: chat.title),
+      ),
+    );
+  }
+}
+
+class _ArchivedChatSwipeRow extends StatefulWidget {
+  const _ArchivedChatSwipeRow({
+    required this.chat,
+    required this.selected,
+    required this.onTap,
+    required this.onClearUnread,
+    this.onUnarchive,
+  });
+
+  final ChatSummary chat;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onClearUnread;
+  final VoidCallback? onUnarchive;
+
+  @override
+  State<_ArchivedChatSwipeRow> createState() => _ArchivedChatSwipeRowState();
+}
+
+class _ArchivedChatSwipeRowState extends State<_ArchivedChatSwipeRow> {
+  static const _actionWidth = 92.0;
+  double _offset = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = widget.onUnarchive;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _offset == 0 ? widget.onTap : () => setState(() => _offset = 0),
+      onHorizontalDragUpdate: action == null
+          ? null
+          : (details) => setState(() {
+              _offset = (_offset + details.delta.dx).clamp(-_actionWidth, 0);
+            }),
+      onHorizontalDragEnd: action == null
+          ? null
+          : (_) => setState(
+              () => _offset = _offset <= -_actionWidth / 2 ? -_actionWidth : 0,
+            ),
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          if (action != null)
+            SizedBox(
+              key: const ValueKey('archived-chat-unarchive'),
+              width: _actionWidth,
+              height: 72,
+              child: Material(
+                color: AppTheme.brand,
+                child: InkWell(
+                  onTap: () {
+                    action();
+                    setState(() => _offset = 0);
+                  },
+                  child: const Center(
+                    child: AppIcon(
+                      HeroAppIcons.inbox,
+                      size: 22,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Transform.translate(
+            offset: Offset(_offset, 0),
+            child: ColoredBox(
+              color: context.colors.background,
+              child: ChatRowView(
+                chat: widget.chat,
+                archived: true,
+                selected: widget.selected,
+                onClearUnread: widget.onClearUnread,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
