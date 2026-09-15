@@ -92,6 +92,7 @@ import 'telegram_mini_app_view.dart';
 import 'video_note_preview_view.dart';
 import 'video_note_recorder_view.dart';
 import 'voice_note_preview_view.dart';
+import 'voice_recording_clock.dart';
 
 enum _Panel { none, function, emoji, sticker, voice }
 
@@ -1684,9 +1685,11 @@ class _ChatInputBarState extends State<ChatInputBar> {
     if (!mounted) return;
     setState(() => _recording = true);
     await _recProgress?.cancel();
+    final clock = VoiceRecordingClock();
     _recProgress = r.onProgress?.listen((event) {
       if (!mounted) return;
-      _elapsed = event.duration.inMilliseconds / 1000;
+      clock.update(event.duration);
+      _elapsed = clock.seconds;
       final level = event.decibels;
       if (level != null && level.isFinite) {
         _recLevels.add((level >= 0 ? level - 120 : level).clamp(-120.0, 0.0));
@@ -1700,13 +1703,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
       if (!mounted) return;
       // Only here to move the clock until the recorder's own progress stream
       // reports; once it has, the timer has nothing left to do.
-      if (_elapsed != 0) {
+      if (clock.hasRecorderProgress) {
         timer.cancel();
         _recTimer = null;
         return;
       }
-      if (_recordingPaused) return;
-      _elapsed += 0.1;
+      clock.tick(const Duration(milliseconds: 100), paused: _recordingPaused);
+      _elapsed = clock.seconds;
       _recTick.value = (elapsed: _elapsed, levels: _recTick.value.levels);
     });
   }

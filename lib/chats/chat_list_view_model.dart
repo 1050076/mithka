@@ -615,6 +615,17 @@ class ChatListViewModel extends ChangeNotifier {
     });
   }
 
+  /// Moves an archived chat back to the main list without deleting history.
+  void unarchive(ChatSummary chat) {
+    _client
+        .query({
+          '@type': 'addChatToList',
+          'chat_id': chat.id,
+          'chat_list': {'@type': 'chatListMain'},
+        })
+        .catchError((Object _) => <String, dynamic>{});
+  }
+
   void toggleMute(ChatSummary chat) {
     final newValue = !chat.isMuted;
     final id = chat.id;
@@ -1240,8 +1251,9 @@ class ChatListViewModel extends ChangeNotifier {
               await _ingestRawChat(raw);
               if (_disposed) return;
               _applyChatCommunityId(chatId, communityId);
+              // Membership resolves after ingestion. Keep the server's grant
+              // even before the chat moves into the non-member directory.
               if (entry.boolean('can_view_history') == true &&
-                  _communityDirectoryChats.containsKey(chatId) &&
                   _viewableCommunityChatIds.add(chatId)) {
                 _scheduleResort();
               } else if (_communityDirectoryChats.containsKey(chatId)) {
