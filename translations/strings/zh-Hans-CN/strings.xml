@@ -1358,6 +1358,8 @@
     <string name="featureBottomTabs">底部标签</string>
     <string name="featureCommunitiesEnabled">启用社群</string>
     <string name="featureDisableSafetyNotice">停用安全提示弹窗</string>
+    <string name="featureLiquidGlassBottomBar">液态玻璃底栏</string>
+    <string name="featureLiquidGlassBottomBarHint">在手机和平板上使用半透明圆角底栏。</string>
     <string name="featureSafety">安全</string>
     <string name="featureTitle">功能</string>
     <string name="feedbackReportDescription">请描述发生了什么。报告会附带应用版本、设备信息、最近的页面切换和 TDLib 操作名称。</string>

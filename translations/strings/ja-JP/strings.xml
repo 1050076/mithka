@@ -1358,6 +1358,8 @@
     <string name="featureBottomTabs">下部タブ</string>
     <string name="featureCommunitiesEnabled">コミュニティを有効にする</string>
     <string name="featureDisableSafetyNotice">安全通知のポップアップを無効にする</string>
+    <string name="featureLiquidGlassBottomBar">リキッドグラスのボトムバー</string>
+    <string name="featureLiquidGlassBottomBarHint">スマートフォンとタブレットで、半透明の角丸ボトムバーを使用します。</string>
     <string name="featureSafety">安全</string>
     <string name="featureTitle">機能</string>
     <string name="feedbackReportDescription">発生した問題を説明してください。アプリのビルド、端末情報、直近の画面遷移、TDLib の操作名が添付されます。</string>
