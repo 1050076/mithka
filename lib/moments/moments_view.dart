@@ -131,6 +131,20 @@ class _MomentsFeedScrollAnchor {
 
 final Map<String, double> _channelMomentsScrollOffsets = {};
 
+class _MomentsHistorySnapshot {
+  const _MomentsHistorySnapshot(
+    this.posts,
+    this.offset,
+    this.nonMutedOnly,
+    this.postableChannels,
+  );
+
+  final List<ChannelPost> posts;
+  final double offset;
+  final bool nonMutedOnly;
+  final List<ChatSummary> postableChannels;
+}
+
 String _channelMomentsScrollKey({
   required int accountSlot,
   required bool isRootTab,
@@ -255,6 +269,8 @@ class MomentsView extends StatefulWidget {
 }
 
 class _MomentsViewState extends State<MomentsView> {
+  // Owned by the Moments root, not a process-wide cache of account messages.
+  PageStorageBucket _channelHistory = PageStorageBucket();
   final _channels = ChatListViewModel();
   final _stories = MomentsViewModel();
   late final StoryService _storyService = widget.storyService ?? StoryService();
@@ -270,6 +286,7 @@ class _MomentsViewState extends State<MomentsView> {
     _channels.onAppear();
     _stories.start();
     _accountSub = TdClient.shared.subscribeActiveSlotChanges().listen((_) {
+      _channelHistory = PageStorageBucket();
       if (mounted) setState(() => _canPublishStories = false);
       unawaited(_loadStoryPublishingPermission());
     });
@@ -366,6 +383,7 @@ class _MomentsViewState extends State<MomentsView> {
   void _openChannelMoments() {
     _openDetail(
       ChannelMomentsView(
+        historyStorage: _channelHistory,
         isRootTab: widget.onOpenDetail != null,
         title: widget.onOpenDetail == null
             ? AppStrings.t(AppStringKeys.tabMoments)
@@ -723,12 +741,14 @@ class ChannelMomentsView extends StatefulWidget {
     this.title = AppStringKeys.tabMoments,
     this.initialChannels = const [],
     this.onOpenDetail,
+    this.historyStorage,
   });
 
   final bool isRootTab;
   final String title;
   final List<ChatSummary> initialChannels;
   final ValueChanged<Widget>? onOpenDetail;
+  final PageStorageBucket? historyStorage;
 
   @override
   State<ChannelMomentsView> createState() => _ChannelMomentsViewState();
@@ -738,7 +758,8 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
   final _model = ChatListViewModel();
   final _replyController = TextEditingController();
   final _replyFocus = FocusNode();
-  final _scroll = ScrollController();
+  late final ScrollController _scroll;
+  double _lastScrollOffset = 0;
   late final String _scrollSessionKey;
   final Map<String, GlobalKey> _postWidgetKeys = {};
   double? _pendingScrollOffset;
@@ -783,6 +804,25 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
       initialChannels: widget.initialChannels,
     );
     _pendingScrollOffset = _channelMomentsScrollOffsets[_scrollSessionKey];
+    final saved = widget.historyStorage?.readState(
+      context,
+      identifier: _scrollSessionKey,
+    );
+    if (saved is _MomentsHistorySnapshot) {
+      for (final post in saved.posts) {
+        (_postsByChannel[post.channel.id] ??= []).add(post);
+        _oldestMessageByChannel.update(
+          post.channel.id,
+          (id) => math.min(id, post.message.id),
+          ifAbsent: () => post.message.id,
+        );
+      }
+      _nonMutedOnly = saved.nonMutedOnly;
+      _postableChannels = saved.postableChannels;
+      _lastScrollOffset = saved.offset;
+      _pendingScrollOffset = null;
+    }
+    _scroll = ScrollController(initialScrollOffset: _lastScrollOffset);
     _model.addListener(_onModel);
     _scroll.addListener(_onScroll);
     _tdSub = TdClient.shared.subscribe().listen(_handleTdUpdate);
@@ -790,7 +830,14 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
     _loadMe();
     if (widget.initialChannels.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _loadChannelPosts();
+        if (!mounted) return;
+        if (saved is _MomentsHistorySnapshot) {
+          // The first frame already contains the same rows and metadata. New
+          // history then merges using the existing visible-post anchor.
+          unawaited(_refreshLatest());
+        } else {
+          unawaited(_loadChannelPosts());
+        }
       });
     }
     _scheduleScrollRestore();
@@ -800,7 +847,30 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
   void dispose() {
     if (_scroll.hasClients) {
       _channelMomentsScrollOffsets[_scrollSessionKey] = _scroll.offset;
+      _lastScrollOffset = _scroll.offset;
     }
+    // Retain exactly the rendered feed, including every member of its albums.
+    // Capping raw messages at 500 would truncate a 500-post album-heavy feed.
+    final retainedIds = {
+      for (final post in _posts)
+        for (final message in post.messages) (post.channel.id, message.id),
+    };
+    final retained = _postsByChannel.values
+        .expand((posts) => posts)
+        .where(
+          (post) => retainedIds.contains((post.channel.id, post.message.id)),
+        )
+        .toList();
+    widget.historyStorage?.writeState(
+      context,
+      _MomentsHistorySnapshot(
+        retained,
+        _lastScrollOffset,
+        _nonMutedOnly,
+        List.of(_postableChannels),
+      ),
+      identifier: _scrollSessionKey,
+    );
     _model.removeListener(_onModel);
     _model.dispose();
     _scroll.removeListener(_onScroll);
@@ -815,6 +885,7 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
 
   void _onScroll() {
     if (!_scroll.hasClients) return;
+    _lastScrollOffset = _scroll.offset;
     _channelMomentsScrollOffsets[_scrollSessionKey] = _scroll.offset;
     if (_scroll.position.extentAfter < 600) _loadChannelPosts(loadOlder: true);
   }
