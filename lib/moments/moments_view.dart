@@ -4266,8 +4266,20 @@ class ChannelPostRow extends StatelessWidget {
     return null;
   }
 
-  List<ChatMessage> get _imageMessages =>
-      messages.where((message) => message.isAlbumVisualMedia).toList();
+  // Album eligibility excludes animations/video notes and requires a photo
+  // thumbnail. A standalone playable post does not have those restrictions.
+  List<ChatMessage> get _imageMessages => messages
+      .where(
+        (message) =>
+            message.isAlbumVisualMedia ||
+            (message.video != null &&
+                const {
+                  'messageVideo',
+                  'messageAnimation',
+                  'messageVideoNote',
+                }.contains(message.contentType)),
+      )
+      .toList();
 
   bool get _hasInlineComments =>
       message.commentCount > 0 || (post.comments?.isNotEmpty ?? false);
@@ -4552,6 +4564,7 @@ class _PostImageGroup extends StatelessWidget {
     required Widget child,
   }) {
     return GestureDetector(
+      key: ValueKey('moments-media-${messages[index].id}'),
       behavior: HitTestBehavior.opaque,
       onTap: () => _openMedia(context, messages[index]),
       child: child,
