@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 
 import '../app/adaptive_split_layout.dart';
 import '../app/app_navigator.dart';
+import '../app/bottom_bar_layout.dart';
 import '../app/desktop_chat_list_title_bar_anchors.dart';
 import '../app/desktop_chat_window.dart';
 import '../app/ipad_window_chrome.dart';
@@ -215,11 +216,13 @@ class ArchivedChatListSelection {
     required this.chatsProvider,
     required this.updates,
     required this.onClearUnread,
+    this.onUnarchive,
   });
 
   final List<ChatSummary> Function() chatsProvider;
   final Listenable updates;
   final ValueChanged<ChatSummary> onClearUnread;
+  final ValueChanged<ChatSummary>? onUnarchive;
 }
 
 bool chatListPreviewSupportsQuickReply(ChatSummary chat) =>
@@ -349,6 +352,90 @@ class ChatListPullDownArchiveSlot extends StatelessWidget {
 }
 
 enum ChatListSwipeAction { none, switchFolders, switchAccounts }
+
+@visibleForTesting
+enum ChatListConnectionStatus { online, connecting, disconnected }
+
+@visibleForTesting
+ChatListConnectionStatus chatListConnectionStatusForTdState(String? stateType) {
+  return switch (stateType) {
+    'connectionStateReady' ||
+    'connectionStateUpdating' => ChatListConnectionStatus.online,
+    'connectionStateWaitingForNetwork' => ChatListConnectionStatus.disconnected,
+    _ => ChatListConnectionStatus.connecting,
+  };
+}
+
+@visibleForTesting
+class ChatListConnectionStatusView extends StatelessWidget {
+  const ChatListConnectionStatusView({super.key, required this.status});
+
+  static const indicatorKey = ValueKey('chat-list-connection-indicator');
+  static const labelKey = ValueKey('chat-list-connection-label');
+
+  final ChatListConnectionStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final label = switch (status) {
+      ChatListConnectionStatus.online => AppStrings.t(
+        AppStringKeys.presenceOnline,
+      ),
+      ChatListConnectionStatus.connecting => AppStrings.t(
+        AppStringKeys.presenceConnecting,
+      ),
+      ChatListConnectionStatus.disconnected => AppStrings.t(
+        AppStringKeys.presenceDisconnected,
+      ),
+    };
+    final muted = status == ChatListConnectionStatus.disconnected;
+
+    return Semantics(
+      liveRegion: true,
+      label: label,
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (status == ChatListConnectionStatus.connecting)
+              SizedBox(
+                key: indicatorKey,
+                width: AppMetric.onlineDot + 2,
+                height: AppMetric.onlineDot + 2,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.4,
+                  color: c.textSecondary,
+                  backgroundColor: c.textTertiary.withValues(alpha: 0.22),
+                ),
+              )
+            else
+              Container(
+                key: indicatorKey,
+                width: AppMetric.onlineDot,
+                height: AppMetric.onlineDot,
+                decoration: BoxDecoration(
+                  color: status == ChatListConnectionStatus.online
+                      ? AppTheme.onlineDot
+                      : c.textTertiary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              label,
+              key: labelKey,
+              style: TextStyle(
+                fontSize: AppTextSize.tiny,
+                color: muted ? c.textTertiary : c.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class ChatListSwipeDecision {
   const ChatListSwipeDecision(this.action, this.horizontalDelta);
@@ -735,6 +822,11 @@ class _ChatListViewState extends State<ChatListView>
   bool _meIsPremium = false;
   int? _meId;
   StreamSubscription? _userSub;
+  StreamSubscription? _connectionSub;
+  StreamSubscription? _activeSlotSub;
+  ChatListConnectionStatus _connectionStatus =
+      ChatListConnectionStatus.connecting;
+  int _connectionRefreshGeneration = 0;
   int? _openSwipeChat;
   bool _showPlusMenu = false;
   bool _showFilterMenu = false;
@@ -792,6 +884,14 @@ class _ChatListViewState extends State<ChatListView>
     _userSub = TdClient.shared.updatesOf('updateUser').listen((u) {
       if (u.obj('user')?.int64('id') == _meId) _loadMe();
     });
+    _connectionSub = TdClient.shared
+        .updatesOf('updateConnectionState')
+        .listen(_applyConnectionUpdate);
+    _activeSlotSub = TdClient.shared.subscribeActiveSlotChanges().listen((_) {
+      _setConnectionStatus(ChatListConnectionStatus.connecting);
+      unawaited(_refreshConnectionStatus());
+    });
+    unawaited(_refreshConnectionStatus());
   }
 
   @override
@@ -883,6 +983,8 @@ class _ChatListViewState extends State<ChatListView>
     _dismissDesktopChatMenu();
     _dismissDesktopPlusMenu();
     _userSub?.cancel();
+    _connectionSub?.cancel();
+    _activeSlotSub?.cancel();
     widget.controller?.removeListener(_onControllerRequest);
     _folderSettleController.dispose();
     _folderDrag.dispose();
@@ -911,6 +1013,40 @@ class _ChatListViewState extends State<ChatListView>
         });
       }
     } catch (_) {}
+  }
+
+  void _applyConnectionUpdate(Map<String, dynamic> update) {
+    _setConnectionStatus(
+      chatListConnectionStatusForTdState(update.obj('state')?.type),
+    );
+  }
+
+  void _setConnectionStatus(ChatListConnectionStatus status) {
+    if (!mounted || status == _connectionStatus) return;
+    setState(() => _connectionStatus = status);
+  }
+
+  Future<void> _refreshConnectionStatus() async {
+    final generation = ++_connectionRefreshGeneration;
+    final slot = TdClient.shared.activeSlot;
+    try {
+      final state = await TdClient.shared.queryForSlot({
+        '@type': 'getConnectionState',
+      }, slot);
+      if (!mounted ||
+          generation != _connectionRefreshGeneration ||
+          slot != TdClient.shared.activeSlot) {
+        return;
+      }
+      _setConnectionStatus(chatListConnectionStatusForTdState(state.type));
+    } catch (_) {
+      if (!mounted ||
+          generation != _connectionRefreshGeneration ||
+          slot != TdClient.shared.activeSlot) {
+        return;
+      }
+      _setConnectionStatus(ChatListConnectionStatus.disconnected);
+    }
   }
 
   Future<void> _openChat(ChatSummary chat, {bool focusComposer = false}) async {
@@ -1809,26 +1945,7 @@ class _ChatListViewState extends State<ChatListView>
                       ],
                     ],
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: AppMetric.onlineDot,
-                        height: AppMetric.onlineDot,
-                        decoration: BoxDecoration(
-                          color: AppTheme.onlineDot,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        AppStrings.t(AppStringKeys.presenceOnline),
-                        style: TextStyle(
-                          fontSize: AppTextSize.tiny,
-                          color: c.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
+                  ChatListConnectionStatusView(status: _connectionStatus),
                 ],
               ),
             ),
@@ -2171,7 +2288,7 @@ class _ChatListViewState extends State<ChatListView>
                 return ListView(
                   primary: false,
                   physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
+                  padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
                   children: [
                     if (showSearch) _searchPill(),
                     SizedBox(
@@ -2188,7 +2305,7 @@ class _ChatListViewState extends State<ChatListView>
               return ListView.builder(
                 primary: false,
                 physics: const NeverScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
+                padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
                 itemCount:
                     (showSearch ? 1 : 0) +
                     entries.length +
@@ -2270,7 +2387,7 @@ class _ChatListViewState extends State<ChatListView>
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
               itemCount:
                   visibleRows +
                   (showLeadingControls ? 1 : 0) +
@@ -2298,7 +2415,7 @@ class _ChatListViewState extends State<ChatListView>
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
               children: [
                 if (showLeadingControls)
                   _archivePullSearchPill(hasPullDownArchiveSlot),
@@ -2311,6 +2428,7 @@ class _ChatListViewState extends State<ChatListView>
                   height: math.max(
                     180,
                     geo.maxHeight -
+                        BottomBarInset.of(context) -
                         searchHeight -
                         (showPulledDownArchive ? rowH : 0),
                   ),
@@ -2324,7 +2442,7 @@ class _ChatListViewState extends State<ChatListView>
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
               itemCount:
                   (showLeadingControls ? 1 : 0) +
                   entries.length +
@@ -2777,6 +2895,7 @@ class _ChatListViewState extends State<ChatListView>
           chatsProvider: () => _model.archived,
           updates: _model,
           onClearUnread: _model.markRead,
+          onUnarchive: _model.unarchive,
         ),
       );
       return;
@@ -2787,6 +2906,7 @@ class _ChatListViewState extends State<ChatListView>
           updates: _model,
           chatsProvider: () => _model.archived,
           onClearUnread: _model.markRead,
+          onUnarchive: _model.unarchive,
         ),
       ),
     );

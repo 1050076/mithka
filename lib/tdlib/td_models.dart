@@ -513,6 +513,7 @@ class ChatSummary {
     required this.unreadCount,
     this.lastReadInboxMessageId = 0,
     this.unreadMentionCount = 0,
+    this.unreadReactionCount = 0,
     required this.order,
     required this.isMuted,
     this.kind = ChatKind.unknown,
@@ -543,6 +544,7 @@ class ChatSummary {
   int unreadCount;
   int lastReadInboxMessageId;
   int unreadMentionCount;
+  int unreadReactionCount;
   int order;
   bool isMuted;
   ChatKind kind;
@@ -674,6 +676,7 @@ class ChatMessage {
     this.restrictedContentText,
     this.restrictedContentTextEntities = const [],
     this.containsUnreadMention = false,
+    this.hasUnreadReactions = false,
     this.senderId,
     this.senderPhoto,
     this.image,
@@ -771,6 +774,7 @@ class ChatMessage {
   String? restrictedContentText;
   List<MessageTextEntity> restrictedContentTextEntities;
   bool containsUnreadMention;
+  bool hasUnreadReactions;
   int? senderId;
   TdFileRef? senderPhoto;
   TdFileRef? image; // photo / sticker / video-thumb / gif
@@ -868,6 +872,7 @@ class ChatMessage {
   bool blockedByUser;
   List<MessageReaction> reactions = const [];
   String? forwardOrigin; // name of the original author when forwarded
+  String? forwardAuthorSignature; // signed author within the origin channel
   int? forwardFromUserId; // origin user, resolved lazily to forwardOrigin
   int? forwardFromChatId; // origin chat/channel, resolved lazily
   int? forwardFromMessageId; // original channel message when TDLib exposes it
@@ -884,7 +889,14 @@ class ChatMessage {
   /// flight or when Telegram intentionally hides the original name.
   String get forwardDisplayName {
     final name = forwardOrigin?.trim();
-    if (name != null && name.isNotEmpty) return name;
+    final signature = forwardAuthorSignature?.trim();
+    if (name != null && name.isNotEmpty) {
+      if (signature != null && signature.isNotEmpty && signature != name) {
+        return '$name ($signature)';
+      }
+      return name;
+    }
+    if (signature != null && signature.isNotEmpty) return signature;
     return AppStrings.t(AppStringKeys.groupManagementLogUnknownActor);
   }
 
@@ -1472,6 +1484,7 @@ abstract final class TDParse {
       unreadCount: unread,
       lastReadInboxMessageId: chat.int64('last_read_inbox_message_id') ?? 0,
       unreadMentionCount: chat.integer('unread_mention_count') ?? 0,
+      unreadReactionCount: chat.integer('unread_reaction_count') ?? 0,
       order: order,
       isMuted: muted,
       kind: chatKind(chat),
@@ -1543,18 +1556,18 @@ abstract final class TDParse {
     final forwardInfo = message.obj('forward_info');
     final origin = forwardInfo?.obj('origin');
     final forwardSource = forwardInfo?.obj('source');
-    String? fwdName;
+    String? fwdName, fwdAuthorSignature;
     int? fwdUserId, fwdChatId, fwdMessageId;
     switch (origin?.type) {
       case 'messageOriginUser':
         fwdUserId = origin?.int64('sender_user_id');
       case 'messageOriginChat':
         fwdChatId = origin?.int64('sender_chat_id');
-        fwdName = origin?.str('author_signature');
+        fwdAuthorSignature = origin?.str('author_signature');
       case 'messageOriginChannel':
         fwdChatId = origin?.int64('chat_id');
         fwdMessageId = origin?.int64('message_id');
-        fwdName = origin?.str('author_signature');
+        fwdAuthorSignature = origin?.str('author_signature');
       case 'messageOriginHiddenUser':
         fwdName = origin?.str('sender_name');
     }
@@ -1618,6 +1631,8 @@ abstract final class TDParse {
             : const [],
         containsUnreadMention:
             message.boolean('contains_unread_mention') ?? false,
+        hasUnreadReactions:
+            (message.objects('unread_reactions') ?? const []).isNotEmpty,
         senderId: senderId,
         senderIsChat: sender?.type == 'messageSenderChat',
         senderTitle:
@@ -1697,6 +1712,7 @@ abstract final class TDParse {
       )
       ..reactions = reactionsFrom(message)
       ..forwardOrigin = isContentRestricted ? null : fwdName
+      ..forwardAuthorSignature = isContentRestricted ? null : fwdAuthorSignature
       ..forwardFromUserId = isContentRestricted ? null : fwdUserId
       ..forwardFromChatId = isContentRestricted ? null : fwdChatId
       ..forwardFromMessageId = isContentRestricted ? null : fwdMessageId;

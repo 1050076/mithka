@@ -8,6 +8,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mithka/app/app_navigator.dart';
+import 'package:mithka/app/global_video_split_host.dart';
+import 'package:mithka/app/video_split_controller.dart';
 import 'package:mithka/chat/video_playback_queue.dart';
 import 'package:mithka/chat/video_player_view.dart';
 import 'package:mithka/l10n/app_localizations.dart';
@@ -19,6 +22,123 @@ import 'package:video_player_platform_interface/video_player_platform_interface.
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('paused Android video hides chrome when tapping its title', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final previousPlatform = VideoPlayerPlatform.instance;
+    final platform = _FakeMobileVideoPlatform();
+    VideoPlayerPlatform.instance = platform;
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      SharedPreferences.setMockInitialValues(const {});
+      final sourcePath = File('pubspec.yaml').absolute.path;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: const [AppLocalizations.delegate],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: VideoPlayerView(
+            video: TdFileRef(id: 780, localPath: sourcePath),
+            title: 'Screenshot frame',
+            initialPlaying: false,
+            onClose: () {},
+            streamQuery: _completedVideoQuery(sourcePath, fileId: 780),
+          ),
+        ),
+      );
+      await _pumpUntilPlayerReady(tester);
+      expect(_playerControlOpacity(tester), 1);
+      await tester.tap(find.text('Screenshot frame'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_playerControlOpacity(tester), 0);
+      await tester.tapAt(const Offset(5, 150));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_playerControlOpacity(tester), 1);
+      await tester.tap(_semanticsWidget('Play'));
+      await tester.pump();
+      expect(_semanticsWidget('Pause'), findsOneWidget);
+      expect(_playerControlOpacity(tester), 1);
+      expect(platform.createCalls, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pumpUntilDisposed(tester, platform);
+    } finally {
+      VideoPlayerPlatform.instance = previousPlatform;
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('split video returns to fullscreen through the app navigator', (
+    tester,
+  ) async {
+    final previousPlatform = VideoPlayerPlatform.instance;
+    final platform = _FakeMobileVideoPlatform();
+    VideoPlayerPlatform.instance = platform;
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final split = VideoSplitController.instance;
+    try {
+      SharedPreferences.setMockInitialValues(const {});
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: appNavigatorKey,
+          locale: const Locale('en'),
+          localizationsDelegates: const [AppLocalizations.delegate],
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => GlobalVideoSplitHost(child: child!),
+          home: const Center(child: Text('Conversation')),
+        ),
+      );
+      final navigator = appNavigatorKey.currentState!;
+      split.play(
+        VideoSplitSession(
+          chatId: 1,
+          title: 'Split video',
+          video: TdFileRef(id: 781),
+        ),
+      );
+      await tester.pump();
+      tester
+          .widget<VideoPlayerView>(find.byType(VideoPlayerView))
+          .onSwitchMode!(VideoDisplayMode.fullscreen);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+      expect(appNavigatorKey.currentState, same(navigator));
+      expect(split.isOpen, isFalse);
+      expect(find.byType(VideoOnDemandPlayerView), findsOneWidget);
+      final fullscreen = tester.widget<VideoOnDemandPlayerView>(
+        find.byType(VideoOnDemandPlayerView),
+      );
+      expect(fullscreen.onSwitchMode, isNotNull);
+      fullscreen.onSwitchMode!(fullscreen.queue, VideoDisplayMode.split);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(split.isOpen, isTrue);
+      expect(find.text('Conversation'), findsOneWidget);
+      tester
+          .widget<VideoPlayerView>(find.byType(VideoPlayerView))
+          .onSwitchMode!(VideoDisplayMode.fullscreen);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(VideoOnDemandPlayerView), findsOneWidget);
+      navigator.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Conversation'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      split.close();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 3));
+      VideoPlayerPlatform.instance = previousPlatform;
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 
   testWidgets(
     'iPhone portrait fullscreen keeps controls usable and commits scrubs on release',
@@ -1061,169 +1181,192 @@ void main() {
     },
   );
 
-  testWidgets(
-    'on-demand queue opens only from its toggle without reloading playback',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
-      tester.view.viewPadding = const FakeViewPadding(top: 47, bottom: 34);
-      addTearDown(() {
-        tester.view.resetDevicePixelRatio();
-        tester.view.resetPhysicalSize();
-        tester.view.resetPadding();
-        tester.view.resetViewPadding();
-      });
+  for (final targetPlatform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    testWidgets(
+      '$targetPlatform on-demand queue hides with fullscreen controls without reloading playback',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+        tester.view.viewPadding = const FakeViewPadding(top: 47, bottom: 34);
+        addTearDown(() {
+          tester.view.resetDevicePixelRatio();
+          tester.view.resetPhysicalSize();
+          tester.view.resetPadding();
+          tester.view.resetViewPadding();
+        });
 
-      final previousPlatform = VideoPlayerPlatform.instance;
-      final platform = _FakeMobileVideoPlatform();
-      VideoPlayerPlatform.instance = platform;
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      try {
-        SharedPreferences.setMockInitialValues(const {});
-        final sourcePath = File('pubspec.yaml').absolute.path;
-        final sourceLength = File(sourcePath).lengthSync();
-        final queueChanges = <VideoPlaybackQueue>[];
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: const Locale('en'),
-            localizationsDelegates: const [AppLocalizations.delegate],
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: VideoOnDemandPlayerView(
-                queue: VideoPlaybackQueue(
-                  items: [
-                    VideoPlaybackItem(
-                      video: TdFileRef(id: 730, localPath: sourcePath),
-                      width: 1920,
-                      height: 1080,
-                      durationSeconds: 3723,
-                      title: 'Opening scene',
-                    ),
-                    VideoPlaybackItem(
-                      video: TdFileRef(id: 731, localPath: sourcePath),
-                      width: 1920,
-                      height: 1080,
-                      durationSeconds: 420,
-                      title: 'Repetition de la Carrera Canada Grand Prix',
-                    ),
-                    VideoPlaybackItem(
-                      video: TdFileRef(id: 732, localPath: sourcePath),
-                      width: 1920,
-                      height: 1080,
-                      durationSeconds: 98,
-                      title: 'Closing scene',
-                    ),
-                  ],
-                ),
-                onClose: () {},
-                onQueueChanged: queueChanges.add,
-                streamQuery: (request) async => _tdFileInfo(
-                  fileId: request['file_id'] as int,
-                  path: sourcePath,
-                  totalBytes: sourceLength,
-                  downloadedBytes: sourceLength,
-                  completed: true,
+        final previousPlatform = VideoPlayerPlatform.instance;
+        final platform = _FakeMobileVideoPlatform();
+        VideoPlayerPlatform.instance = platform;
+        debugDefaultTargetPlatformOverride = targetPlatform;
+        try {
+          SharedPreferences.setMockInitialValues(const {});
+          final sourcePath = File('pubspec.yaml').absolute.path;
+          final sourceLength = File(sourcePath).lengthSync();
+          final queueChanges = <VideoPlaybackQueue>[];
+          await tester.pumpWidget(
+            MaterialApp(
+              locale: const Locale('en'),
+              localizationsDelegates: const [AppLocalizations.delegate],
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: VideoOnDemandPlayerView(
+                  queue: VideoPlaybackQueue(
+                    items: [
+                      VideoPlaybackItem(
+                        video: TdFileRef(id: 730, localPath: sourcePath),
+                        width: 1920,
+                        height: 1080,
+                        durationSeconds: 3723,
+                        title: 'Opening scene',
+                      ),
+                      VideoPlaybackItem(
+                        video: TdFileRef(id: 731, localPath: sourcePath),
+                        width: 1920,
+                        height: 1080,
+                        durationSeconds: 420,
+                        title: 'Repetition de la Carrera Canada Grand Prix',
+                      ),
+                      VideoPlaybackItem(
+                        video: TdFileRef(id: 732, localPath: sourcePath),
+                        width: 1920,
+                        height: 1080,
+                        durationSeconds: 98,
+                        title: 'Closing scene',
+                      ),
+                    ],
+                  ),
+                  onClose: () {},
+                  onQueueChanged: queueChanges.add,
+                  streamQuery: (request) async => _tdFileInfo(
+                    fileId: request['file_id'] as int,
+                    path: sourcePath,
+                    totalBytes: sourceLength,
+                    downloadedBytes: sourceLength,
+                    completed: true,
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-        await _pumpUntilPlayerReady(tester);
-
-        final panel = find.byKey(const ValueKey('video-on-demand-panel'));
-        final surface = find.byKey(const ValueKey('video-on-demand-surface'));
-        final toggle = find.byKey(const ValueKey('video-on-demand-toggle'));
-        expect(find.byType(FVideoPlayer), findsOneWidget);
-        expect(toggle, findsOneWidget);
-        expect(panel, findsNothing);
-        expect(surface, findsNothing);
-        expect(find.text('ON-DEMAND'), findsNothing);
-        expect(find.text('UP NEXT'), findsNothing);
-        expect(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is Text &&
-                RegExp(
-                  r'playlist|chapters',
-                  caseSensitive: false,
-                ).hasMatch(widget.data ?? ''),
-          ),
-          findsNothing,
-        );
-
-        final initializationsBeforePanel = platform.initializedEvents;
-        await tester.tap(toggle);
-        await tester.pump();
-
-        expect(panel, findsOneWidget);
-        expect(surface, findsOneWidget);
-        expect(find.text('ON-DEMAND'), findsNothing);
-        expect(find.text('UP NEXT'), findsNothing);
-        expect(find.text('1:02:03'), findsWidgets);
-        expect(platform.initializedEvents, initializationsBeforePanel);
-
-        final portraitPanelRect = tester.getRect(panel);
-        final portraitSurfaceRect = tester.getRect(surface);
-        expect(portraitPanelRect.top, greaterThan(portraitSurfaceRect.bottom));
-        expect(portraitPanelRect.left, closeTo(14, 0.01));
-        expect(portraitPanelRect.right, closeTo(376, 0.01));
-        expect(portraitPanelRect.bottom, lessThanOrEqualTo(844 - 34));
-        expect(tester.takeException(), isNull);
-
-        await tester.tap(toggle);
-        await tester.pump();
-        expect(panel, findsNothing);
-        expect(surface, findsNothing);
-        expect(platform.initializedEvents, initializationsBeforePanel);
-
-        await tester.tap(toggle);
-        await tester.pump();
-        expect(panel, findsOneWidget);
-
-        await tester.tap(
-          find.byKey(const ValueKey('video-on-demand-item-731')),
-        );
-        for (var i = 0; i < 30 && platform.initializedEvents < 2; i++) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 5)),
           );
-          await tester.pump(const Duration(milliseconds: 25));
+          await _pumpUntilPlayerReady(tester);
+
+          final panel = find.byKey(const ValueKey('video-on-demand-panel'));
+          final surface = find.byKey(const ValueKey('video-on-demand-surface'));
+          final toggle = find.byKey(const ValueKey('video-on-demand-toggle'));
+          expect(find.byType(FVideoPlayer), findsOneWidget);
+          expect(toggle, findsOneWidget);
+          expect(panel, findsNothing);
+          expect(surface, findsNothing);
+          expect(find.text('ON-DEMAND'), findsNothing);
+          expect(find.text('UP NEXT'), findsNothing);
+          expect(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is Text &&
+                  RegExp(
+                    r'playlist|chapters',
+                    caseSensitive: false,
+                  ).hasMatch(widget.data ?? ''),
+            ),
+            findsNothing,
+          );
+
+          final initializationsBeforePanel = platform.initializedEvents;
+          await tester.tap(toggle);
+          await tester.pump();
+
+          expect(panel, findsOneWidget);
+          expect(surface, findsOneWidget);
+          expect(find.text('ON-DEMAND'), findsNothing);
+          expect(find.text('UP NEXT'), findsNothing);
+          expect(find.text('1:02:03'), findsWidgets);
+          expect(platform.initializedEvents, initializationsBeforePanel);
+
+          final portraitPanelRect = tester.getRect(panel);
+          final portraitSurfaceRect = tester.getRect(surface);
+          expect(
+            portraitPanelRect.top,
+            greaterThan(portraitSurfaceRect.bottom),
+          );
+          expect(portraitPanelRect.left, closeTo(14, 0.01));
+          expect(portraitPanelRect.right, closeTo(376, 0.01));
+          expect(portraitPanelRect.bottom, lessThanOrEqualTo(844 - 34));
+          expect(tester.takeException(), isNull);
+
+          final blankPoint =
+              tester.getTopLeft(find.byType(FVideoPlayer)) +
+              const Offset(5, 150);
+          await tester.tapAt(blankPoint);
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(_playerControlOpacity(tester), 0);
+          expect(panel, findsNothing);
+          expect(surface, findsNothing);
+          expect(
+            tester.getSize(find.byType(FVideoPlayer)),
+            const Size(390, 844),
+          );
+          expect(platform.initializedEvents, initializationsBeforePanel);
+          await tester.tapAt(blankPoint);
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(_playerControlOpacity(tester), 1);
+          expect(panel, findsOneWidget);
+
+          await tester.tap(toggle);
+          await tester.pump();
+          expect(panel, findsNothing);
+          expect(surface, findsNothing);
+          expect(platform.initializedEvents, initializationsBeforePanel);
+
+          await tester.tap(toggle);
+          await tester.pump();
+          expect(panel, findsOneWidget);
+
+          await tester.tap(
+            find.byKey(const ValueKey('video-on-demand-item-731')),
+          );
+          for (var i = 0; i < 30 && platform.initializedEvents < 2; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+            await tester.pump(const Duration(milliseconds: 25));
+          }
+          expect(queueChanges.single.index, 1);
+          expect(
+            find.text('Repetition de la Carrera Canada Grand Prix'),
+            findsWidgets,
+          );
+          expect(find.byType(FVideoPlayer), findsOneWidget);
+          expect(tester.takeException(), isNull);
+
+          await tester.tap(toggle);
+          await tester.pump();
+          expect(panel, findsOneWidget);
+          expect(find.text('Playing'), findsOneWidget);
+
+          tester.view.physicalSize = const Size(1180, 820);
+          tester.view.padding = const FakeViewPadding();
+          tester.view.viewPadding = const FakeViewPadding();
+          await tester.pump();
+
+          final widePanelRect = tester.getRect(panel);
+          final wideSurfaceRect = tester.getRect(surface);
+          expect(widePanelRect.left, greaterThan(wideSurfaceRect.right));
+          expect(widePanelRect.right, lessThanOrEqualTo(1180));
+          expect(widePanelRect.bottom, lessThanOrEqualTo(820));
+          expect(find.text('Autoplay'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+
+          await tester.pumpWidget(const SizedBox.shrink());
+          await _pumpUntilDisposed(tester, platform, expectedCalls: 2);
+        } finally {
+          VideoPlayerPlatform.instance = previousPlatform;
+          debugDefaultTargetPlatformOverride = null;
         }
-        expect(queueChanges.single.index, 1);
-        expect(
-          find.text('Repetition de la Carrera Canada Grand Prix'),
-          findsWidgets,
-        );
-        expect(find.byType(FVideoPlayer), findsOneWidget);
-        expect(tester.takeException(), isNull);
-
-        await tester.tap(toggle);
-        await tester.pump();
-        expect(panel, findsOneWidget);
-        expect(find.text('Playing'), findsOneWidget);
-
-        tester.view.physicalSize = const Size(1180, 820);
-        tester.view.padding = const FakeViewPadding();
-        tester.view.viewPadding = const FakeViewPadding();
-        await tester.pump();
-
-        final widePanelRect = tester.getRect(panel);
-        final wideSurfaceRect = tester.getRect(surface);
-        expect(widePanelRect.left, greaterThan(wideSurfaceRect.right));
-        expect(widePanelRect.right, lessThanOrEqualTo(1180));
-        expect(widePanelRect.bottom, lessThanOrEqualTo(820));
-        expect(find.text('Autoplay'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-
-        await tester.pumpWidget(const SizedBox.shrink());
-        await _pumpUntilDisposed(tester, platform, expectedCalls: 2);
-      } finally {
-        VideoPlayerPlatform.instance = previousPlatform;
-        debugDefaultTargetPlatformOverride = null;
-      }
-    },
-  );
+      },
+    );
+  }
 
   testWidgets('Android volume gesture controls the system media stream', (
     tester,

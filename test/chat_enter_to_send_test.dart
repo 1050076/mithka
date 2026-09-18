@@ -538,29 +538,31 @@ void main() {
     expect(vm.sentTexts, ['候補']);
   });
 
-  testWidgets('disabled desktop Ctrl-Enter sends while Enter stays multiline', (
-    tester,
-  ) async {
-    final vm = await _pumpComposer(
-      tester,
-      enterToSend: false,
-      platform: TargetPlatform.macOS,
-    );
-    final field = find.byType(TextField);
+  testWidgets(
+    'disabled desktop Ctrl-Enter sends while Enter stays multiline',
+    (tester) async {
+      final vm = await _pumpComposer(
+        tester,
+        enterToSend: false,
+        platform: TargetPlatform.macOS,
+      );
+      final field = find.byType(TextField);
 
-    await tester.tap(field);
-    await tester.enterText(field, 'first');
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pump();
-    expect(vm.sentTexts, isEmpty);
-    expect(tester.widget<TextField>(field).controller?.text, 'first\n');
+      await tester.tap(field);
+      await tester.enterText(field, 'first');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(vm.sentTexts, isEmpty);
+      expect(tester.widget<TextField>(field).controller?.text, 'first\n');
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-    await tester.pump();
-    expect(vm.sentTexts, ['first\n']);
-  });
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(vm.sentTexts, ['first\n']);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 }
 
 Future<_EnterToSendViewModel> _pumpComposer(

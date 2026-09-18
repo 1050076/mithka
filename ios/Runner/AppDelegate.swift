@@ -171,6 +171,9 @@ import UserNotifications
     guard !didRegisterFlutterPlugins else { return }
     didRegisterFlutterPlugins = true
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NativeBottomTabBar") {
+      registrar.register(NativeBottomTabBarFactory(registrar: registrar), withId: "mithka/native_bottom_bar")
+    }
     HandoffBridge.shared.register(
       messenger: engineBridge.applicationRegistrar.messenger()
     )

@@ -87,6 +87,21 @@ class AppearanceView extends StatelessWidget {
                 ),
               ),
             ]),
+          SettingsSection(
+            titleKey: AppStringKeys.featureBottomTabs,
+            rows: [
+              SettingsSwitchRow(
+                key: const ValueKey('settings-liquid-glass-bottom-bar'),
+                title: AppStringKeys.featureLiquidGlassBottomBar,
+                subtitle: AppStringKeys.featureLiquidGlassBottomBarHint,
+                value: theme.liquidGlassBottomBar,
+                leading: const SettingsLeadingIcon(
+                  icon: HeroAppIcons.wandMagicSparkles,
+                ),
+                onChanged: (value) => theme.liquidGlassBottomBar = value,
+              ),
+            ],
+          ),
           _label(context, AppStrings.t(AppStringKeys.appearanceSectionText)),
           _card(context, [
             KeyedSubtree(

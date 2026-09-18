@@ -4,9 +4,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mithka/app/adaptive_split_layout.dart';
 import 'package:mithka/app/app_navigator.dart';
+import 'package:mithka/app/bottom_bar_layout.dart';
 import 'package:mithka/app/chat_deep_link_controller.dart';
 import 'package:mithka/app/content_view.dart';
 import 'package:mithka/app/detail_content_reveal.dart';
+import 'package:mithka/app/liquid_glass_bottom_bar.dart';
 import 'package:mithka/app/main_tab_view.dart';
 import 'package:mithka/auth/account_store.dart';
 import 'package:mithka/auth/auth_manager.dart';
@@ -28,6 +30,68 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  for (final size in [const Size(390, 844), const Size(1024, 800)]) {
+    testWidgets('glass option switches live without losing tabs at $size', (
+      tester,
+    ) async {
+      await _setSurfaceSize(tester, size);
+      final harness = await _pumpMainShell(tester, reducedMotion: true);
+      expect(find.byKey(const ValueKey('classic-bottom-bar')), findsOneWidget);
+      expect(find.byType(LiquidGlassBottomBar), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('bottom-tab-2')));
+      await tester.pump();
+      final contacts = tester.element(find.byType(ContactsView));
+
+      harness.theme.liquidGlassBottomBar = true;
+      await tester.pump();
+      expect(find.byType(LiquidGlassBottomBar), findsOneWidget);
+      expect(find.byKey(const ValueKey('classic-bottom-bar')), findsNothing);
+      // The viewport now reaches the screen bottom; padding is inside the
+      // scroll content so its last row can move clear of the overlaid bar.
+      await tester.pump();
+      final scroll = find.descendant(
+        of: find.byType(ContactsView),
+        matching: find.byType(CustomScrollView),
+      );
+      expect(tester.getRect(scroll).bottom, size.height);
+      expect(BottomBarInset.of(tester.element(scroll)), greaterThan(60));
+
+      expect(
+        identical(tester.element(find.byType(ContactsView)), contacts),
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<LiquidGlassBottomBar>(find.byType(LiquidGlassBottomBar))
+            .selection,
+        1,
+      );
+
+      // Removing the selected optional tab must update both the page and pill.
+      harness.theme.showContactsTab = false;
+      await tester.pump();
+      await tester.pump();
+      final bar = tester.widget<LiquidGlassBottomBar>(
+        find.byType(LiquidGlassBottomBar),
+      );
+      expect(bar.itemCount, 1);
+      expect(bar.selection, 0);
+      expect(find.byType(ChatListView), findsOneWidget);
+      harness.theme.showContactsTab = true;
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('bottom-tab-2')));
+      await tester.pump();
+      expect(find.byType(ContactsView), findsOneWidget);
+
+      harness.theme.liquidGlassBottomBar = false;
+      await tester.pump();
+      expect(find.byType(LiquidGlassBottomBar), findsNothing);
+      expect(find.byKey(const ValueKey('classic-bottom-bar')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await _disposeShell(tester);
+    });
+  }
+
   testWidgets('rapid main-tab switching preserves the nested tab state', (
     tester,
   ) async {
@@ -393,7 +457,9 @@ void _discardMissingTdlibErrors(WidgetTester tester) {
 }
 
 class _MainShellHarness {
-  const _MainShellHarness({required this.drawer});
+  const _MainShellHarness({required this.drawer, required this.theme});
+
+  final ThemeController theme;
 
   final dc.DrawerController drawer;
 }
@@ -472,7 +538,7 @@ Future<_MainShellHarness> _pumpMainShell(
     ),
   );
   await tester.pump();
-  return _MainShellHarness(drawer: drawer);
+  return _MainShellHarness(drawer: drawer, theme: theme);
 }
 
 ChatView _chatFor(Route<dynamic> route) {

@@ -20,6 +20,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/active_conversation.dart';
 import '../app/adaptive_split_layout.dart';
+import '../app/app_navigator.dart';
+import '../app/chat_pane.dart';
 import '../app/desktop_video_window.dart';
 import '../app/ipad_window_chrome.dart';
 import '../app/primary_chat_launcher.dart';
@@ -27,6 +29,7 @@ import '../app/video_split_controller.dart';
 import '../auth/telegram_country_names.dart';
 import '../call/call_manager.dart';
 import '../channels/topic_chat_view.dart';
+import '../channels/topic_navigation.dart';
 import '../chats/search_token_views.dart';
 import '../communities/community_models.dart';
 import '../communities/community_view.dart';
@@ -119,6 +122,7 @@ import 'sticker_viewer.dart';
 import 'telegram_ai_service.dart';
 import 'telegram_cocoon_unread_summary_provider.dart';
 import 'telegram_mini_app_view.dart';
+import 'transcript_entry_boundary.dart';
 import 'transcript_pivot_partition.dart';
 import 'translation_fallback.dart';
 import 'unread_chat_summary_models.dart';
@@ -1153,6 +1157,8 @@ class _ChatViewState extends State<ChatView> {
   final _firstContactLayoutKey = GlobalKey();
   Map<int, GlobalKey> _entryVisibilityKeys = <int, GlobalKey>{};
   Map<int, _TranscriptEntry> _trackedTranscriptEntries = const {};
+  final Map<int, RenderBox> _mountedTranscriptEntries = {};
+  bool _bottomGapCorrectionScheduled = false;
   TranscriptPivot? _transcriptPivot;
   bool _transcriptPivotFrozen = false;
   bool _transcriptPivotFreezeScheduled = false;
@@ -1269,6 +1275,7 @@ class _ChatViewState extends State<ChatView> {
   bool _maintainRestoredBottom = false;
   final _restoredBottomCorrection = ChatBottomCorrectionCoordinator();
   bool _openingUnreadMention = false;
+  bool _openingUnreadReaction = false;
   bool _openingUnreadSummary = false;
   bool _exitStatePrepared = false;
   bool _notificationVisibilityRegistered = false;
@@ -1283,6 +1290,7 @@ class _ChatViewState extends State<ChatView> {
   final Set<int> _autoTranslatedMessageIds = <int>{};
   bool _sendFailureDialogVisible = false;
   VoidCallback? _detachExitController;
+  VoidCallback? _detachPaneBackHandler;
   final ChatSessionCacheWriteGate _sessionCacheWriteGate =
       ChatSessionCacheWriteGate();
 
@@ -1504,6 +1512,15 @@ class _ChatViewState extends State<ChatView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _detachPaneBackHandler?.call();
+    _detachPaneBackHandler = ChatPane.registerBackHandler(context, () {
+      if (_search.isActive) {
+        _closeSearch();
+        return true;
+      }
+      _prepareExitState();
+      return false;
+    });
     final tickerEnabled = TickerMode.valuesOf(context).enabled;
     final reactivated = !_viewTickerEnabled && tickerEnabled;
     _viewTickerEnabled = tickerEnabled;
@@ -1684,6 +1701,7 @@ class _ChatViewState extends State<ChatView> {
     } else if (notification is ScrollEndNotification) {
       _olderHistoryPull.reset();
       _scheduleLoadedOlderReveal();
+      _scheduleTranscriptBottomGapCorrection();
       _saveSessionScrollSnapshot();
       _scheduleHandoffRefresh();
     }
@@ -1778,6 +1796,7 @@ class _ChatViewState extends State<ChatView> {
     _scheduleShortTranscriptFill();
     _scheduleSessionScrollAnchorMaintenance();
     _scheduleRestoredBottomCorrection();
+    _scheduleTranscriptBottomGapCorrection();
     if (!_hasTranscriptPointerDown && _isAtLoadedBottom(1)) {
       _transcriptViewportClaimedByUser = false;
     }
@@ -1963,10 +1982,9 @@ class _ChatViewState extends State<ChatView> {
     double? visibleAnchorTop;
     int? partialAnchorMessageId;
     double? partialAnchorTop;
-    for (final entry in _trackedTranscriptEntries.entries) {
-      final itemContext = _entryVisibilityKeys[entry.key]?.currentContext;
-      final itemRenderObject = itemContext?.findRenderObject();
-      if (itemRenderObject is! RenderBox || !itemRenderObject.attached) {
+    for (final entry in _mountedTranscriptEntries.entries) {
+      final itemRenderObject = entry.value;
+      if (!itemRenderObject.attached) {
         continue;
       }
       final itemTop = itemRenderObject
@@ -2016,10 +2034,9 @@ class _ChatViewState extends State<ChatView> {
     var changed = false;
     final newlyVisible = <ChatMessage>[];
 
-    for (final entry in _trackedTranscriptEntries.entries) {
-      final itemContext = _entryVisibilityKeys[entry.key]?.currentContext;
-      final itemRenderObject = itemContext?.findRenderObject();
-      if (itemRenderObject is! RenderBox || !itemRenderObject.attached) {
+    for (final entry in _mountedTranscriptEntries.entries) {
+      final itemRenderObject = entry.value;
+      if (!itemRenderObject.attached) {
         continue;
       }
       final itemOrigin = itemRenderObject.localToGlobal(
@@ -2029,7 +2046,9 @@ class _ChatViewState extends State<ChatView> {
       final itemRect = itemOrigin & itemRenderObject.size;
       if (!itemRect.overlaps(viewportRect)) continue;
 
-      for (final message in entry.value.messages) {
+      for (final message
+          in _trackedTranscriptEntries[entry.key]?.messages ??
+              const <ChatMessage>[]) {
         if (message.isOutgoing || message.isService) continue;
         final observation = _unreadProgress.observeVisibleIncoming(
           messageId: message.id,
@@ -2063,14 +2082,63 @@ class _ChatViewState extends State<ChatView> {
         (position.pixels - position.minScrollExtent).abs() <= 1) {
       return true;
     }
-    return isNearLatest(position, threshold: threshold);
+    return (_loadedBottomOffset - position.pixels).abs() <= threshold;
   }
 
   double get _loadedBottomOffset {
     final position = _scroll.position;
-    return _showingFullyVisibleFirstContactHistory
-        ? position.minScrollExtent
-        : position.maxScrollExtent;
+    if (_showingFullyVisibleFirstContactHistory) {
+      return position.minScrollExtent;
+    }
+    if (_vm.isLoadingLatest) return position.maxScrollExtent;
+    final latestId = _transcriptCache?.lastOrNull?.last.id;
+    final latest = _mountedTranscriptEntries[latestId];
+    final viewport = _transcriptViewportKey.currentContext?.findRenderObject();
+    if (latest != null &&
+        latest.attached &&
+        latest.hasSize &&
+        viewport is RenderBox &&
+        viewport.attached &&
+        viewport.hasSize) {
+      final bottom = latest
+          .localToGlobal(Offset(0, latest.size.height), ancestor: viewport)
+          .dy;
+      // A center sliver clamps maxScrollExtent to zero even when its short
+      // final arm ends above the viewport bottom. Its real latest edge can
+      // be negative, with older messages filling the space above it.
+      return clampScrollOffset(
+        position,
+        position.pixels + bottom + 8 - viewport.size.height,
+      );
+    }
+    return position.maxScrollExtent;
+  }
+
+  void _scheduleTranscriptBottomGapCorrection() {
+    if (_bottomGapCorrectionScheduled) return;
+    _bottomGapCorrectionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bottomGapCorrectionScheduled = false;
+      if (!mounted ||
+          !_initialTranscriptReady ||
+          !_scroll.hasClients ||
+          !_scroll.position.hasContentDimensions ||
+          _hasTranscriptPointerDown ||
+          _isUserScrolling ||
+          _scrollTargetId != null ||
+          _maintainSessionScrollAnchor ||
+          _showingFullyVisibleFirstContactHistory) {
+        return;
+      }
+      final target = _loadedBottomOffset;
+      if (_scroll.position.pixels <= target + 1) return;
+      // Clamp only the empty trailing area after a resize or finished drag.
+      // Keep the pivot and the current history window; fetching latest here
+      // would discard an unread/search destination.
+      _cancelBottomFollow();
+      _scroll.jumpTo(target);
+      _saveSessionScrollSnapshot();
+    });
   }
 
   bool _isAtLoadedBottom([double threshold = 24]) {
@@ -2136,6 +2204,7 @@ class _ChatViewState extends State<ChatView> {
     _scheduleTranscriptPivotFreeze();
     _scheduleUnreadProgressUpdate();
     _scheduleShortFirstContactReveal();
+    _scheduleTranscriptBottomGapCorrection();
   }
 
   void _scheduleScrollToBottom({
@@ -2469,6 +2538,7 @@ class _ChatViewState extends State<ChatView> {
       targetMessageId,
       alignment: _initialUnreadAlignment,
       forceAlignment: true,
+      alignUnreadDivider: _isEntryUnreadMessage(targetMessageId),
       isCancelled: isCancelled,
     );
     return didReachTarget && !isCancelled();
@@ -2687,7 +2757,10 @@ class _ChatViewState extends State<ChatView> {
     // _isTranscriptShort walks every cached entry; nothing below moves the
     // scroll position or the pivot, so one measurement serves all three tests.
     final latestArmIsShort = _isTranscriptShort();
-    final hasPendingMessageTarget = _scrollTargetId != null;
+    final hasPendingMessageTarget =
+        _scrollTargetId != null ||
+        widget.initialMessageId != null ||
+        (_didInitialScroll && !_initialTranscriptReady);
     final hydratedShortTranscript = shouldRebaseForHydratedOlderPage(
       prependedOlder: prependedOlder,
       latestArmWasShort: latestArmIsShort,
@@ -2722,7 +2795,7 @@ class _ChatViewState extends State<ChatView> {
       viewportClaimedByUser: _transcriptViewportClaimedByUser,
     );
     final wasPinnedToLoadedBottom =
-        _didInitialScroll &&
+        _initialTranscriptReady &&
         !_hasTranscriptPointerDown &&
         !_isUserScrolling &&
         !_transcriptViewportClaimedByUser &&
@@ -2775,6 +2848,7 @@ class _ChatViewState extends State<ChatView> {
         expandedInitialWindow ||
         hydratedShortTranscript ||
         (!_transcriptPivotFrozen &&
+            !hasPendingMessageTarget &&
             _vm.initialLoaded &&
             !identical(_transcriptCacheMessages, _vm.messages));
     if (shouldResetParkedPivot) {
@@ -2822,7 +2896,7 @@ class _ChatViewState extends State<ChatView> {
       _lastNewestMessageId = newest?.id ?? _lastNewestMessageId;
       _lastOldestMessageId = oldest?.id ?? _lastOldestMessageId;
       final shouldAutoScroll =
-          _didInitialScroll &&
+          _initialTranscriptReady &&
           _scrollTargetId == null &&
           !_vm.anchoredHistory &&
           appendedNewest &&
@@ -2856,7 +2930,7 @@ class _ChatViewState extends State<ChatView> {
     if (target != null) {
       _setScrollTarget(target, forceNavigation: true);
       final navigationGeneration = _scrollTargetGeneration;
-      if (_didInitialScroll) {
+      if (_initialTranscriptReady) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted ||
               !_isCurrentScrollTarget(target, navigationGeneration)) {
@@ -3066,6 +3140,11 @@ class _ChatViewState extends State<ChatView> {
       setState(() => _initialTranscriptReady = true);
       return;
     }
+    final shortUnreadTail =
+        _initialViewportTarget().kind ==
+            ChatInitialViewportTargetKind.firstUnread &&
+        _vm.historyReachesLatest &&
+        _isTranscriptShort();
     if (_repairParkedShortTranscriptPivot()) {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
@@ -3073,7 +3152,17 @@ class _ChatViewState extends State<ChatView> {
         setState(() => _initialTranscriptReady = true);
         return;
       }
-      if (_canFollowLoadedBottom()) _scrollToBottom();
+      if (_canFollowLoadedBottom() || shortUnreadTail) _scrollToBottom();
+      if (shortUnreadTail) {
+        // Finish the short unread tail's bottom alignment before revealing it.
+        // Rebasing a one-row center otherwise exposes empty space, then the
+        // first gesture repairs it with a sudden jump to the newest message.
+        for (var pass = 0; pass < 3; pass++) {
+          await WidgetsBinding.instance.endOfFrame;
+          if (!mounted || _initialTranscriptPositioningAborted) return;
+          _scrollToBottom();
+        }
+      }
     }
     if (!mounted) return;
     setState(() => _initialTranscriptReady = true);
@@ -3219,11 +3308,20 @@ class _ChatViewState extends State<ChatView> {
 
   Future<void> _positionInitialTranscript() async {
     if (!_scroll.hasClients || _initialTranscriptPositioningAborted) return;
-    final initialTarget = _scrollTargetId;
+    // Build the resolved unread row before aligning it. Height estimates can
+    // skip it entirely in channels with long posts and mixed media.
+    final decision = _initialViewportTarget();
+    final initialTarget = decision.messageId;
+    if (initialTarget != null &&
+        (decision.kind == ChatInitialViewportTargetKind.message ||
+            decision.kind == ChatInitialViewportTargetKind.readBoundary)) {
+      setState(() => _setScrollTarget(initialTarget));
+    }
     if (initialTarget == null ||
         !_stageMessageAtTranscriptCenter(initialTarget)) {
       _jumpToInitialEstimate();
     }
+    var corrected = false;
     for (var i = 0; i < 3; i++) {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted ||
@@ -3231,8 +3329,13 @@ class _ChatViewState extends State<ChatView> {
           _initialTranscriptPositioningAborted) {
         return;
       }
-      await _correctInitialPosition();
+      corrected = await _correctInitialPosition() || corrected;
       if (_initialTranscriptPositioningAborted) return;
+    }
+    // Keep one target key through every alignment pass. Clearing it inside
+    // the loop leaves later passes pointing at a key that was never built.
+    if (corrected && mounted && _scrollTargetId == initialTarget) {
+      setState(() => _setScrollTarget(null));
     }
   }
 
@@ -3243,12 +3346,10 @@ class _ChatViewState extends State<ChatView> {
     _scroll.jumpTo(position);
   }
 
-  double? _initialPositionEstimate() {
-    if (!_scroll.hasClients || _vm.messages.isEmpty) return null;
-    final max = _scroll.position.maxScrollExtent;
+  ChatInitialViewportTarget _initialViewportTarget() {
     final i = _firstUnreadIndex();
     final boundaryLoaded = _isUnreadBoundaryLoaded();
-    final decision = resolveChatInitialViewportTarget(
+    return resolveChatInitialViewportTarget(
       explicitMessageId: widget.initialMessageId,
       pendingMessageId: _scrollTargetId,
       openAtBottom: _shouldOpenAtBottom,
@@ -3258,6 +3359,12 @@ class _ChatViewState extends State<ChatView> {
       unreadBoundaryLoaded: boundaryLoaded,
       lastReadInboxId: _entryLastReadInboxId,
     );
+  }
+
+  double? _initialPositionEstimate() {
+    if (!_scroll.hasClients || _vm.messages.isEmpty) return null;
+    final max = _scroll.position.maxScrollExtent;
+    final decision = _initialViewportTarget();
     return switch (decision.kind) {
       ChatInitialViewportTargetKind.message ||
       ChatInitialViewportTargetKind.readBoundary => () {
@@ -3279,18 +3386,7 @@ class _ChatViewState extends State<ChatView> {
     if (!_scroll.hasClients || _initialTranscriptPositioningAborted) {
       return false;
     }
-    final i = _firstUnreadIndex();
-    final boundaryLoaded = _isUnreadBoundaryLoaded();
-    final decision = resolveChatInitialViewportTarget(
-      explicitMessageId: widget.initialMessageId,
-      pendingMessageId: _scrollTargetId,
-      openAtBottom: _shouldOpenAtBottom,
-      anchoredHistory: _vm.anchoredHistory,
-      unreadCount: _entryUnreadCount,
-      firstUnreadMessageId: i < 0 ? null : _vm.messages[i].id,
-      unreadBoundaryLoaded: boundaryLoaded,
-      lastReadInboxId: _entryLastReadInboxId,
-    );
+    final decision = _initialViewportTarget();
     switch (decision.kind) {
       case ChatInitialViewportTargetKind.message:
       case ChatInitialViewportTargetKind.readBoundary:
@@ -3301,9 +3397,6 @@ class _ChatViewState extends State<ChatView> {
           alignment: _initialTargetAlignment,
         );
         if (_initialTranscriptPositioningAborted) return false;
-        if (corrected && mounted && _scrollTargetId == target) {
-          setState(() => _setScrollTarget(null));
-        }
         return corrected;
       case ChatInitialViewportTargetKind.firstUnread:
         return _ensureKeyVisible(
@@ -3525,7 +3618,7 @@ class _ChatViewState extends State<ChatView> {
     _parkedShortTranscriptRepairScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _parkedShortTranscriptRepairScheduled = false;
-      if (!mounted) return;
+      if (!mounted || !_initialTranscriptReady) return;
       if (!_repairParkedShortTranscriptPivot()) return;
       setState(() {});
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3569,6 +3662,7 @@ class _ChatViewState extends State<ChatView> {
 
   Future<void> _fillShortTranscript() async {
     if (!mounted ||
+        !_initialTranscriptReady ||
         !_scroll.hasClients ||
         !_vm.initialLoaded ||
         _initialTranscriptPositionCancelled) {
@@ -3663,6 +3757,15 @@ class _ChatViewState extends State<ChatView> {
 
   bool _isTranscriptShort() {
     if (!_scroll.hasClients) return true;
+    // An unread/search destination can contain just one or two very tall
+    // messages. A thin around-unread page may also fall back to latest history,
+    // clearing anchoredHistory without changing the unread entry destination.
+    // In either case, a low row count must not rebase a full-height message
+    // and jump past its unread divider to the bottom.
+    if (_vm.anchoredHistory ||
+        (_entryUnreadCount > 0 && !_shouldOpenAtBottom)) {
+      return _scroll.position.maxScrollExtent <= 24;
+    }
     // With a center sliver, only the after-center arm defines the latest edge.
     // A large negative min extent says nothing about whether that arm fills
     // the viewport.
@@ -3790,11 +3893,9 @@ class _ChatViewState extends State<ChatView> {
       final viewportBottom = viewportRenderObject.size.height;
       var bestDistance = double.infinity;
       int? bestIndex;
-      for (final trackedEntry in _trackedTranscriptEntries.entries) {
-        final itemContext =
-            _entryVisibilityKeys[trackedEntry.key]?.currentContext;
-        final itemRenderObject = itemContext?.findRenderObject();
-        if (itemRenderObject is! RenderBox || !itemRenderObject.attached) {
+      for (final trackedEntry in _mountedTranscriptEntries.entries) {
+        final itemRenderObject = trackedEntry.value;
+        if (!itemRenderObject.attached) {
           continue;
         }
         final itemTop = itemRenderObject
@@ -3809,7 +3910,8 @@ class _ChatViewState extends State<ChatView> {
                   : viewportBottom - itemBottom);
         if (distance >= bestDistance) continue;
         bestDistance = distance;
-        final entry = trackedEntry.value;
+        final entry = _trackedTranscriptEntries[trackedEntry.key];
+        if (entry == null) continue;
         bestIndex = topEdge
             ? entry.startIndex
             : entry.startIndex + entry.messages.length - 1;
@@ -3933,6 +4035,7 @@ class _ChatViewState extends State<ChatView> {
   @override
   void dispose() {
     _prepareExitState();
+    _detachPaneBackHandler?.call();
     _detachExitController?.call();
     NotificationController.shared.unregisterVisibleChat(this);
     ActiveConversation.shared.unregister(this);
@@ -6110,24 +6213,26 @@ class _ChatViewState extends State<ChatView> {
                                           : _header()),
                                 body: showPeerRestrictionBlock
                                     ? _restrictedPeerBlockPage()
-                                    : Column(
-                                        children: [
-                                          Expanded(
-                                            child: _transcriptLayer(
-                                              searchPane: searchPane,
+                                    : _withTopicNavigation(
+                                        Column(
+                                          children: [
+                                            Expanded(
+                                              child: _transcriptLayer(
+                                                searchPane: searchPane,
+                                              ),
                                             ),
-                                          ),
-                                          _chatMusicPlayer(),
-                                          // A narrow chat trades the composer
-                                          // for the hit navigator; a wide one
-                                          // keeps composing beside the results.
-                                          if (searching && !searchPane)
-                                            _searchNavigator()
-                                          else if (_isSelecting)
-                                            _selectionActionBar()
-                                          else
-                                            _composerArea(),
-                                        ],
+                                            _chatMusicPlayer(),
+                                            // A narrow chat trades the composer
+                                            // for the hit navigator; a wide one
+                                            // keeps composing beside the results.
+                                            if (searching && !searchPane)
+                                              _searchNavigator()
+                                            else if (_isSelecting)
+                                              _selectionActionBar()
+                                            else
+                                              _composerArea(),
+                                          ],
+                                        ),
                                       ),
                                 trailingPane: searchPane
                                     ? _searchResultsPane()
@@ -6157,6 +6262,30 @@ class _ChatViewState extends State<ChatView> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _withTopicNavigation(Widget child) {
+    if (!_vm.supportsTopics ||
+        !usesSplitSelectionLayout(MediaQuery.sizeOf(context))) {
+      return child;
+    }
+    return TopicNavigationLayout(
+      topics: [
+        for (final topic in _vm.forumTopics)
+          TopicNavigationItem(
+            id: topic.id,
+            name: topic.name,
+            iconCustomEmojiId: topic.iconCustomEmojiId,
+            iconColor: topic.iconColor,
+          ),
+      ],
+      selectedTopicId: null,
+      hasForumTabs: _vm.hasForumTabs,
+      onSelected: (id) {
+        if (id != null) unawaited(_openTopicMode(id));
+      },
+      child: child,
     );
   }
 
@@ -6370,7 +6499,8 @@ class _ChatViewState extends State<ChatView> {
                   (_showEntryUnreadBanner || _vm.unreadCount > 0),
             ),
           ),
-        if (transcriptReady && _vm.unreadMentionCount > 0)
+        if (transcriptReady &&
+            (_vm.unreadMentionCount > 0 || _vm.unreadReactionCount > 0))
           Positioned(
             top:
                 (showPinnedTodo ? 72.0 : 8.0) +
@@ -6378,7 +6508,7 @@ class _ChatViewState extends State<ChatView> {
                     ? 52
                     : 0),
             right: 12,
-            child: _unreadMentionIndicator(),
+            child: _unreadActivityIndicators(),
           ),
         if (transcriptReady &&
             bottomIndicator == ChatBottomIndicator.jumpToBottom)
@@ -6936,34 +7066,83 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
-  Widget _unreadMentionIndicator() {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _openingUnreadMention ? null : _openUnreadMention,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 120),
-        opacity: _openingUnreadMention ? 0.62 : 1,
-        child: Container(
-          width: 40,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppTheme.brand,
-            borderRadius: BorderRadius.circular(17),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+  Widget _unreadActivityIndicators() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (_vm.unreadMentionCount > 0)
+          _unreadActivityIndicator(
+            key: const ValueKey('unread-mention-indicator'),
+            icon: HeroAppIcons.at,
+            count: _vm.unreadMentionCount,
+            label: AppStrings.t(AppStringKeys.notificationMentions),
+            opening: _openingUnreadMention,
+            onTap: _openUnreadMention,
           ),
-          child: const Text(
-            '@',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+        if (_vm.unreadMentionCount > 0 && _vm.unreadReactionCount > 0)
+          const SizedBox(height: AppSpacing.md),
+        if (_vm.unreadReactionCount > 0)
+          _unreadActivityIndicator(
+            key: const ValueKey('unread-reaction-indicator'),
+            icon: HeroAppIcons.heart,
+            count: _vm.unreadReactionCount,
+            label: AppStrings.t(AppStringKeys.notificationReactions),
+            opening: _openingUnreadReaction,
+            onTap: _openUnreadReaction,
+          ),
+      ],
+    );
+  }
+
+  Widget _unreadActivityIndicator({
+    required Key key,
+    required AppIconData icon,
+    required int count,
+    required String label,
+    required bool opening,
+    required VoidCallback onTap,
+  }) {
+    final countLabel = count > 999 ? '999+' : '$count';
+    return Semantics(
+      button: true,
+      label: '$label: $countLabel',
+      child: GestureDetector(
+        key: key,
+        behavior: HitTestBehavior.opaque,
+        onTap: opening ? null : onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 120),
+          opacity: opening ? 0.62 : 1,
+          child: Container(
+            height: 34,
+            constraints: const BoxConstraints(minWidth: 40),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppTheme.brand,
+              borderRadius: BorderRadius.circular(17),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AppIcon(icon, size: AppIconSize.lg, color: Colors.white),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  countLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: AppTextSize.caption,
+                    fontWeight: AppTextWeight.semibold,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -6982,6 +7161,19 @@ class _ChatViewState extends State<ChatView> {
       }
     }
     if (mounted) setState(() => _openingUnreadMention = false);
+  }
+
+  Future<void> _openUnreadReaction() async {
+    if (_openingUnreadReaction || _vm.unreadReactionCount <= 0) return;
+    setState(() => _openingUnreadReaction = true);
+    final messageId = await _vm.openNextUnreadReaction();
+    if (messageId != null && mounted) {
+      await _scrollToMessage(messageId);
+      if (_vm.messages.any((message) => message.id == messageId)) {
+        await _vm.markUnreadReactionRead(messageId);
+      }
+    }
+    if (mounted) setState(() => _openingUnreadReaction = false);
   }
 
   // MARK: - Composer area (input bar / join bar / disabled bar)
@@ -7587,12 +7779,29 @@ class _ChatViewState extends State<ChatView> {
       onOpenTopicMode(threadId);
       return;
     }
+    final chat = _topicChatSummary();
+    _prepareExitState();
+    if (ChatPane.replace(
+      context,
+      (onBack) => TopicChatView(
+        chat: chat,
+        initialThreadId: threadId,
+        hasForumTabs: _vm.hasForumTabs,
+        headerHeight: widget.headerHeight,
+        headerColor: widget.headerColor,
+        onBack: onBack,
+      ),
+    )) {
+      return;
+    }
     unawaited(
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
+      replaceWithAppChatRoute<void, void>(
+        context,
+        AppChatPageRoute<void>(
           builder: (_) => TopicChatView(
-            chat: _topicChatSummary(),
+            chat: chat,
             initialThreadId: threadId,
+            hasForumTabs: _vm.hasForumTabs,
           ),
         ),
       ),
@@ -8012,6 +8221,7 @@ class _ChatViewState extends State<ChatView> {
     bool pinnedJump = false,
     double? alignment,
     bool forceAlignment = false,
+    bool alignUnreadDivider = false,
     bool Function()? isCancelled,
   }) async {
     if (isCancelled?.call() ?? false) return false;
@@ -8033,6 +8243,7 @@ class _ChatViewState extends State<ChatView> {
         pinnedJump: pinnedJump,
         alignment: alignment,
         forceAlignment: forceAlignment,
+        alignUnreadDivider: alignUnreadDivider,
         isCancelled: targetCancelled,
       );
     }
@@ -8050,6 +8261,7 @@ class _ChatViewState extends State<ChatView> {
       pinnedJump: pinnedJump,
       alignment: alignment,
       forceAlignment: forceAlignment,
+      alignUnreadDivider: alignUnreadDivider,
       isCancelled: targetCancelled,
     );
   }
@@ -8174,6 +8386,7 @@ class _ChatViewState extends State<ChatView> {
     bool instant = false,
     double? alignment,
     bool forceAlignment = false,
+    bool alignUnreadDivider = false,
     bool Function()? isCancelled,
   }) async {
     bool targetCancelled() =>
@@ -8185,7 +8398,10 @@ class _ChatViewState extends State<ChatView> {
     var stagedAtTranscriptCenter = false;
     for (var tries = 0; tries < 6; tries++) {
       if (targetCancelled()) return false;
-      final activeKey = _targetKey;
+      // Unread navigation targets the divider, not a fraction of the message
+      // body. For an oversized post, aligning its body at 12% would put the
+      // beginning and the divider hundreds of pixels above the viewport.
+      final activeKey = alignUnreadDivider ? _unreadKey : _targetKey;
       final ctx = activeKey.currentContext;
       if (ctx != null && ctx.mounted) {
         if (pinnedJump && alignment == null && _scroll.hasClients) {
@@ -8241,7 +8457,11 @@ class _ChatViewState extends State<ChatView> {
           _stageMessageAtTranscriptCenter(messageId)) {
         stagedAtTranscriptCenter = true;
       } else {
-        final estimate = _estimateMessageOffset(messageId, targetAlignment);
+        final estimate = _estimateMessageOffset(
+          messageId,
+          targetAlignment,
+          beforeUnreadDivider: alignUnreadDivider,
+        );
         if (estimate != null) _scroll.jumpTo(estimate);
       }
       await WidgetsBinding.instance.endOfFrame;
@@ -8436,94 +8656,104 @@ class _ChatViewState extends State<ChatView> {
     final newerIndexByKey = _sliverCacheNewerIndexByKey!;
     _scheduleUnreadProgressUpdate();
     _scheduleShortFirstContactReveal();
+    _scheduleTranscriptBottomGapCorrection();
     // No fill of its own: ChatWallpaperBackground already covers this region
     // with the same chatBackground when no wallpaper is set, and a transparent
     // ColoredBox still issues a full-viewport drawRect.
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onTranscriptScrollNotification,
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: _onTranscriptPointerDown,
-        onPointerUp: _onTranscriptPointerEnd,
-        onPointerCancel: _onTranscriptPointerEnd,
-        child: CustomScrollView(
-          key: _transcriptViewportKey,
-          controller: _scroll,
-          center: _newerTranscriptSliverKey,
-          physics: const ClampingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          scrollCacheExtent: ScrollCacheExtent.pixels(
-            defaultTargetPlatform == TargetPlatform.android ? 260 : 420,
-          ),
-          semanticChildCount:
-              entries.length + (firstContactInfo == null ? 0 : 1),
-          slivers: [
-            const SliverToBoxAdapter(child: SizedBox(height: 8)),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  if (index < olderEntries.length) {
-                    return _buildTranscriptEntry(olderEntries[index], messages);
-                  }
-                  if (firstContactBeforeCenter &&
-                      index == olderEntries.length) {
-                    return _buildFirstContactCard(firstContactInfo);
-                  }
-                  if (showOlderLoadingGap) {
-                    return _historyLoadingGap('chat-older-history-gap');
-                  }
-                  return _buildFirstContactCard(firstContactInfo!);
-                },
-                childCount: olderChildCount,
-                // Nothing in the transcript keeps itself alive and there is
-                // no SelectableRegion, so the two keep-alive wrappers are
-                // dead weight; every row already carries its own
-                // RepaintBoundary.
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: false,
-                findChildIndexCallback: (key) {
-                  if (key == const ValueKey('chat-first-contact-card')) {
-                    return firstContactBeforeCenter
-                        ? olderEntries.length
-                        : null;
-                  }
-                  return olderIndexByKey[key];
-                },
-                semanticIndexCallback: (_, localIndex) =>
-                    olderChildCount - localIndex - 1,
-              ),
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (notification) {
+        if (notification.depth == 0) _scheduleTranscriptBottomGapCorrection();
+        return false;
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _onTranscriptScrollNotification,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _onTranscriptPointerDown,
+          onPointerUp: _onTranscriptPointerEnd,
+          onPointerCancel: _onTranscriptPointerEnd,
+          child: CustomScrollView(
+            key: _transcriptViewportKey,
+            controller: _scroll,
+            center: _newerTranscriptSliverKey,
+            physics: const ClampingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
             ),
-            SliverList(
-              key: _newerTranscriptSliverKey,
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  if (firstContactAtCenter && index == 0) {
-                    return _buildFirstContactCard(firstContactInfo);
-                  }
-                  return _buildTranscriptEntry(
-                    newerEntries[index - newerLeadingItemCount],
-                    messages,
-                  );
-                },
-                childCount: newerEntries.length + newerLeadingItemCount,
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: false,
-                findChildIndexCallback: (key) {
-                  if (key == const ValueKey('chat-first-contact-card')) {
-                    return firstContactAtCenter ? 0 : null;
-                  }
-                  return newerIndexByKey[key];
-                },
-                semanticIndexOffset: olderChildCount,
-              ),
+            scrollCacheExtent: ScrollCacheExtent.pixels(
+              defaultTargetPlatform == TargetPlatform.android ? 260 : 420,
             ),
-            if (_vm.isLoadingLatest)
-              SliverToBoxAdapter(
-                child: _historyLoadingGap('chat-latest-history-gap'),
+            semanticChildCount:
+                entries.length + (firstContactInfo == null ? 0 : 1),
+            slivers: [
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index < olderEntries.length) {
+                      return _buildTranscriptEntry(
+                        olderEntries[index],
+                        messages,
+                      );
+                    }
+                    if (firstContactBeforeCenter &&
+                        index == olderEntries.length) {
+                      return _buildFirstContactCard(firstContactInfo);
+                    }
+                    if (showOlderLoadingGap) {
+                      return _historyLoadingGap('chat-older-history-gap');
+                    }
+                    return _buildFirstContactCard(firstContactInfo!);
+                  },
+                  childCount: olderChildCount,
+                  // Nothing in the transcript keeps itself alive and there is
+                  // no SelectableRegion, so the two keep-alive wrappers are
+                  // dead weight; every row already carries its own
+                  // RepaintBoundary.
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: false,
+                  findChildIndexCallback: (key) {
+                    if (key == const ValueKey('chat-first-contact-card')) {
+                      return firstContactBeforeCenter
+                          ? olderEntries.length
+                          : null;
+                    }
+                    return olderIndexByKey[key];
+                  },
+                  semanticIndexCallback: (_, localIndex) =>
+                      olderChildCount - localIndex - 1,
+                ),
               ),
-            const SliverToBoxAdapter(child: SizedBox(height: 8)),
-          ],
+              SliverList(
+                key: _newerTranscriptSliverKey,
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (firstContactAtCenter && index == 0) {
+                      return _buildFirstContactCard(firstContactInfo);
+                    }
+                    return _buildTranscriptEntry(
+                      newerEntries[index - newerLeadingItemCount],
+                      messages,
+                    );
+                  },
+                  childCount: newerEntries.length + newerLeadingItemCount,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: false,
+                  findChildIndexCallback: (key) {
+                    if (key == const ValueKey('chat-first-contact-card')) {
+                      return firstContactAtCenter ? 0 : null;
+                    }
+                    return newerIndexByKey[key];
+                  },
+                  semanticIndexOffset: olderChildCount,
+                ),
+              ),
+              if (_vm.isLoadingLatest)
+                SliverToBoxAdapter(
+                  child: _historyLoadingGap('chat-latest-history-gap'),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+            ],
+          ),
         ),
       ),
     );
@@ -8794,27 +9024,28 @@ class _ChatViewState extends State<ChatView> {
     final positionedMessageBody = usesExactMediaTarget || targetKey == null
         ? messageBody
         : KeyedSubtree(key: targetKey, child: messageBody);
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_needsUnreadDivider(messageIndex, messages: messages))
-          KeyedSubtree(key: _unreadKey, child: _unreadDivider()),
-        if (_needsSeparator(messageIndex, messages: messages))
-          TimeSeparator(unix: message.date),
-        positionedMessageBody,
-      ],
-    );
     final visibilityKey = _entryVisibilityKeys.putIfAbsent(
       entry.last.id,
       GlobalKey.new,
     );
-    // The visibility key resolved to this RepaintBoundary's render object
-    // already; hanging it here drops one wrapper element per row.
     return KeyedSubtree(
       key: entry.key,
-      child: RepaintBoundary(
-        key: visibilityKey,
-        child: _messageNavigationHighlight(entry, content),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_needsUnreadDivider(messageIndex, messages: messages))
+            KeyedSubtree(key: _unreadKey, child: _unreadDivider()),
+          if (_needsSeparator(messageIndex, messages: messages))
+            TimeSeparator(unix: message.date),
+          // Anchor the message itself: unread/date separators can disappear
+          // between visits and must not shift the restored reading position.
+          TranscriptEntryBoundary(
+            key: visibilityKey,
+            messageId: entry.last.id,
+            mountedEntries: _mountedTranscriptEntries,
+            child: _messageNavigationHighlight(entry, positionedMessageBody),
+          ),
+        ],
       ),
     );
   }

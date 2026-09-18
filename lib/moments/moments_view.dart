@@ -16,6 +16,7 @@ import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
 import '../app/app_navigator.dart';
+import '../app/bottom_bar_layout.dart';
 import '../app/ipad_window_chrome.dart';
 import '../chat/chat_picker_view.dart';
 import '../chat/chat_view.dart';
@@ -130,6 +131,20 @@ class _MomentsFeedScrollAnchor {
 }
 
 final Map<String, double> _channelMomentsScrollOffsets = {};
+
+class _MomentsHistorySnapshot {
+  const _MomentsHistorySnapshot(
+    this.posts,
+    this.offset,
+    this.nonMutedOnly,
+    this.postableChannels,
+  );
+
+  final List<ChannelPost> posts;
+  final double offset;
+  final bool nonMutedOnly;
+  final List<ChatSummary> postableChannels;
+}
 
 String _channelMomentsScrollKey({
   required int accountSlot,
@@ -255,6 +270,8 @@ class MomentsView extends StatefulWidget {
 }
 
 class _MomentsViewState extends State<MomentsView> {
+  // Owned by the Moments root, not a process-wide cache of account messages.
+  PageStorageBucket _channelHistory = PageStorageBucket();
   final _channels = ChatListViewModel();
   final _stories = MomentsViewModel();
   late final StoryService _storyService = widget.storyService ?? StoryService();
@@ -270,6 +287,7 @@ class _MomentsViewState extends State<MomentsView> {
     _channels.onAppear();
     _stories.start();
     _accountSub = TdClient.shared.subscribeActiveSlotChanges().listen((_) {
+      _channelHistory = PageStorageBucket();
       if (mounted) setState(() => _canPublishStories = false);
       unawaited(_loadStoryPublishingPermission());
     });
@@ -366,6 +384,7 @@ class _MomentsViewState extends State<MomentsView> {
   void _openChannelMoments() {
     _openDetail(
       ChannelMomentsView(
+        historyStorage: _channelHistory,
         isRootTab: widget.onOpenDetail != null,
         title: widget.onOpenDetail == null
             ? AppStrings.t(AppStringKeys.tabMoments)
@@ -414,7 +433,10 @@ class _MomentsViewState extends State<MomentsView> {
             const NavHeader(title: AppStringKeys.tabMoments),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(top: AppSpacing.md),
+              padding: EdgeInsets.only(
+                top: AppSpacing.md,
+                bottom: BottomBarInset.of(context),
+              ),
               children: [
                 StoryShelf(
                   model: _stories,
@@ -723,12 +745,14 @@ class ChannelMomentsView extends StatefulWidget {
     this.title = AppStringKeys.tabMoments,
     this.initialChannels = const [],
     this.onOpenDetail,
+    this.historyStorage,
   });
 
   final bool isRootTab;
   final String title;
   final List<ChatSummary> initialChannels;
   final ValueChanged<Widget>? onOpenDetail;
+  final PageStorageBucket? historyStorage;
 
   @override
   State<ChannelMomentsView> createState() => _ChannelMomentsViewState();
@@ -738,7 +762,8 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
   final _model = ChatListViewModel();
   final _replyController = TextEditingController();
   final _replyFocus = FocusNode();
-  final _scroll = ScrollController();
+  late final ScrollController _scroll;
+  double _lastScrollOffset = 0;
   late final String _scrollSessionKey;
   final Map<String, GlobalKey> _postWidgetKeys = {};
   double? _pendingScrollOffset;
@@ -783,6 +808,25 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
       initialChannels: widget.initialChannels,
     );
     _pendingScrollOffset = _channelMomentsScrollOffsets[_scrollSessionKey];
+    final saved = widget.historyStorage?.readState(
+      context,
+      identifier: _scrollSessionKey,
+    );
+    if (saved is _MomentsHistorySnapshot) {
+      for (final post in saved.posts) {
+        (_postsByChannel[post.channel.id] ??= []).add(post);
+        _oldestMessageByChannel.update(
+          post.channel.id,
+          (id) => math.min(id, post.message.id),
+          ifAbsent: () => post.message.id,
+        );
+      }
+      _nonMutedOnly = saved.nonMutedOnly;
+      _postableChannels = saved.postableChannels;
+      _lastScrollOffset = saved.offset;
+      _pendingScrollOffset = null;
+    }
+    _scroll = ScrollController(initialScrollOffset: _lastScrollOffset);
     _model.addListener(_onModel);
     _scroll.addListener(_onScroll);
     _tdSub = TdClient.shared.subscribe().listen(_handleTdUpdate);
@@ -790,7 +834,14 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
     _loadMe();
     if (widget.initialChannels.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _loadChannelPosts();
+        if (!mounted) return;
+        if (saved is _MomentsHistorySnapshot) {
+          // The first frame already contains the same rows and metadata. New
+          // history then merges using the existing visible-post anchor.
+          unawaited(_refreshLatest());
+        } else {
+          unawaited(_loadChannelPosts());
+        }
       });
     }
     _scheduleScrollRestore();
@@ -800,7 +851,30 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
   void dispose() {
     if (_scroll.hasClients) {
       _channelMomentsScrollOffsets[_scrollSessionKey] = _scroll.offset;
+      _lastScrollOffset = _scroll.offset;
     }
+    // Retain exactly the rendered feed, including every member of its albums.
+    // Capping raw messages at 500 would truncate a 500-post album-heavy feed.
+    final retainedIds = {
+      for (final post in _posts)
+        for (final message in post.messages) (post.channel.id, message.id),
+    };
+    final retained = _postsByChannel.values
+        .expand((posts) => posts)
+        .where(
+          (post) => retainedIds.contains((post.channel.id, post.message.id)),
+        )
+        .toList();
+    widget.historyStorage?.writeState(
+      context,
+      _MomentsHistorySnapshot(
+        retained,
+        _lastScrollOffset,
+        _nonMutedOnly,
+        List.of(_postableChannels),
+      ),
+      identifier: _scrollSessionKey,
+    );
     _model.removeListener(_onModel);
     _model.dispose();
     _scroll.removeListener(_onScroll);
@@ -815,6 +889,7 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
 
   void _onScroll() {
     if (!_scroll.hasClients) return;
+    _lastScrollOffset = _scroll.offset;
     _channelMomentsScrollOffsets[_scrollSessionKey] = _scroll.offset;
     if (_scroll.position.extentAfter < 600) _loadChannelPosts(loadOlder: true);
   }
@@ -1368,6 +1443,7 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
       if (!mounted) return;
       final posts = _posts.take(_metadataHydrationLimit).toList();
       _loadAuthors(posts);
+      _loadForwardAttributions(posts);
       _loadReplyQuotes(posts);
       _loadLikeNames(posts);
       _loadThreadTargets(posts);
@@ -1386,6 +1462,41 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
       if (_loadingReplyQuotes.contains(key)) continue;
       _loadingReplyQuotes.add(key);
       _resolveReplyQuote(post, key);
+    }
+  }
+
+  final Map<String, Future<String?>> _forwardNames = {};
+
+  void _loadForwardAttributions(List<ChannelPost> posts) {
+    for (final post in posts) {
+      for (final message in post.messages) {
+        if (message.forwardOrigin?.trim().isNotEmpty == true) continue;
+        final userId = message.forwardFromUserId;
+        final chatId = message.forwardFromChatId;
+        if (userId == null && chatId == null) continue;
+        final key = '${post.accountSlot}:$userId:$chatId';
+        final pending = _forwardNames.putIfAbsent(key, () async {
+          try {
+            final raw = await TdClient.shared.queryForSlot({
+              '@type': userId != null ? 'getUser' : 'getChat',
+              if (userId != null) 'user_id': userId else 'chat_id': chatId,
+            }, post.accountSlot);
+            return userId != null ? TDParse.userName(raw) : raw.str('title');
+          } catch (_) {
+            return null;
+          }
+        });
+        unawaited(
+          pending.then((name) {
+            if (name == null || name.trim().isEmpty) {
+              _forwardNames.remove(key);
+              return;
+            }
+            message.forwardOrigin = name;
+            _notifyPost(post);
+          }),
+        );
+      }
     }
   }
 
@@ -4148,6 +4259,16 @@ class ChannelPostRow extends StatelessWidget {
                 ),
               ],
             ),
+            if (message.hasForwardAttribution) ...[
+              const SizedBox(height: 10),
+              Text(
+                key: const ValueKey('momentsForwardAttribution'),
+                AppStrings.t(AppStringKeys.messageBubbleForwardedFrom, {
+                  'value1': message.forwardDisplayName,
+                }),
+                style: TextStyle(fontSize: 13, color: c.linkBlue),
+              ),
+            ],
             if (text.isNotEmpty) ...[
               const SizedBox(height: 12),
               TelegramRichText(
@@ -4220,8 +4341,20 @@ class ChannelPostRow extends StatelessWidget {
     return null;
   }
 
-  List<ChatMessage> get _imageMessages =>
-      messages.where((message) => message.isAlbumVisualMedia).toList();
+  // Album eligibility excludes animations/video notes and requires a photo
+  // thumbnail. A standalone playable post does not have those restrictions.
+  List<ChatMessage> get _imageMessages => messages
+      .where(
+        (message) =>
+            message.isAlbumVisualMedia ||
+            (message.video != null &&
+                const {
+                  'messageVideo',
+                  'messageAnimation',
+                  'messageVideoNote',
+                }.contains(message.contentType)),
+      )
+      .toList();
 
   bool get _hasInlineComments =>
       message.commentCount > 0 || (post.comments?.isNotEmpty ?? false);
@@ -4231,10 +4364,7 @@ class ChannelPostRow extends StatelessWidget {
   bool get _hasSignedAuthor =>
       !_isChannelSelfPost(post) && post.authorName?.trim().isNotEmpty == true;
 
-  bool get _hasReplyQuote =>
-      message.replyToMessageId != null &&
-      ((message.replyToPreview?.trim().isNotEmpty ?? false) ||
-          message.replyToImage != null);
+  bool get _hasReplyQuote => message.replyToMessageId != null;
 }
 
 class _PostReplyQuote extends StatelessWidget {
@@ -4249,8 +4379,10 @@ class _PostReplyQuote extends StatelessWidget {
     final preview = message.replyToPreview?.trim() ?? '';
     final image = message.replyToImage;
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final hasText = (sender?.isNotEmpty ?? false) || preview.isNotEmpty;
+    final hasText =
+        (sender?.isNotEmpty ?? false) || preview.isNotEmpty || image == null;
     return Container(
+      key: const ValueKey('momentsReplyQuote'),
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(13, 10, 13, 10),
       decoration: BoxDecoration(
@@ -4295,7 +4427,11 @@ class _PostReplyQuote extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                    TextSpan(text: preview.replaceAll('\n', ' ')),
+                    TextSpan(
+                      text: preview.isEmpty && image == null
+                          ? AppStringKeys.chatInputBarReply.l10n(context)
+                          : preview.replaceAll('\n', ' '),
+                    ),
                   ],
                 ),
               ),
@@ -4503,6 +4639,7 @@ class _PostImageGroup extends StatelessWidget {
     required Widget child,
   }) {
     return GestureDetector(
+      key: ValueKey('moments-media-${messages[index].id}'),
       behavior: HitTestBehavior.opaque,
       onTap: () => _openMedia(context, messages[index]),
       child: child,
@@ -4512,7 +4649,7 @@ class _PostImageGroup extends StatelessWidget {
   void _openMedia(BuildContext context, ChatMessage message) {
     final video = message.video;
     if (video != null) {
-      Navigator.of(context).push(
+      Navigator.of(context, rootNavigator: true).push(
         MaterialPageRoute(
           fullscreenDialog: true,
           builder: (_) => VideoOnDemandPlayerView(queue: _videoQueue(message)),

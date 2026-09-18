@@ -1358,6 +1358,8 @@
     <string name="featureBottomTabs">底部标签</string>
     <string name="featureCommunitiesEnabled">启用社群</string>
     <string name="featureDisableSafetyNotice">停用安全提示弹窗</string>
+    <string name="featureLiquidGlassBottomBar">液态玻璃底栏</string>
+    <string name="featureLiquidGlassBottomBarHint">在手机和平板上使用半透明圆角底栏。</string>
     <string name="featureSafety">安全</string>
     <string name="featureTitle">功能</string>
     <string name="feedbackReportDescription">请描述发生了什么。报告会附带应用版本、设备信息、最近的页面切换和 TDLib 操作名称。</string>
@@ -2213,6 +2215,8 @@
     <string name="pollResultsUnableToLoadVoters">无法加载投票者</string>
     <string name="pollResultsVotesWithDetailedStatistics">{value1} 票数 · 提供详细统计数据</string>
     <string name="premiumLabel">高级</string>
+    <string name="presenceConnecting">正在连接</string>
+    <string name="presenceDisconnected">已断开连接</string>
     <string name="presenceLastSeenRecently">最近在线</string>
     <string name="presenceLastSeenWithinMonth">一个月内在线</string>
     <string name="presenceLastSeenWithinWeek">一周内在线</string>
@@ -3379,6 +3383,8 @@
     <string name="videoPlaybackHorizontalSwipe">左右滑动</string>
     <string name="videoPlaybackLeftVerticalSwipe">左侧上下滑动</string>
     <string name="videoPlaybackRightVerticalSwipe">右侧上下滑动</string>
+    <string name="videoPlaybackAndroidCompatibility">视频兼容模式</string>
+    <string name="videoPlaybackAndroidCompatibilityHint">有助于避免 Android 14 及更新版本上的视频画面损坏。更改后打开的视频将使用此设置。</string>
     <string name="videoPlaybackSettingsTitle">视频播放</string>
     <string name="videoPlaybackSwipeAdjustBrightness">调节亮度</string>
     <string name="videoPlaybackSwipeAdjustProgress">调整播放进度</string>

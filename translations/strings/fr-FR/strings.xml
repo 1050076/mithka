@@ -1362,6 +1362,8 @@
     <string name="featureBottomTabs">Onglets inférieurs</string>
     <string name="featureCommunitiesEnabled">Activer les communautés</string>
     <string name="featureDisableSafetyNotice">Désactiver l’avertissement de sécurité</string>
+    <string name="featureLiquidGlassBottomBar">Barre inférieure en verre liquide</string>
+    <string name="featureLiquidGlassBottomBarHint">Utiliser une barre inférieure translucide aux coins arrondis sur téléphone et tablette.</string>
     <string name="featureSafety">Sécurité</string>
     <string name="featureTitle">Fonctionnalités</string>
     <string name="feedbackReportDescription">Décrivez le problème. Le rapport inclut la version, les données de l’appareil, les écrans récents et les noms d’opérations TDLib.</string>
@@ -2220,6 +2222,8 @@
     <string name="pollResultsUnableToLoadVoters">Impossible de charger les votants</string>
     <string name="pollResultsVotesWithDetailedStatistics">{value1} votes · statistiques détaillées disponibles</string>
     <string name="premiumLabel">Premium</string>
+    <string name="presenceConnecting">connexion…</string>
+    <string name="presenceDisconnected">déconnecté</string>
     <string name="presenceLastSeenRecently">vu récemment</string>
     <string name="presenceLastSeenWithinMonth">vu il y a moins d’un mois</string>
     <string name="presenceLastSeenWithinWeek">vu il y a moins d’une semaine</string>
@@ -3387,6 +3391,8 @@
     <string name="videoPlaybackHorizontalSwipe">Balayage horizontal</string>
     <string name="videoPlaybackLeftVerticalSwipe">Balayage vertical à gauche</string>
     <string name="videoPlaybackRightVerticalSwipe">Balayage vertical à droite</string>
+    <string name="videoPlaybackAndroidCompatibility">Mode de compatibilité vidéo</string>
+    <string name="videoPlaybackAndroidCompatibilityHint">Aide à éviter les images vidéo corrompues sur Android 14 et versions ultérieures. S’applique aux vidéos ouvertes après la modification de ce réglage.</string>
     <string name="videoPlaybackSettingsTitle">Lecture vidéo</string>
     <string name="videoPlaybackSwipeAdjustBrightness">Régler la luminosité</string>
     <string name="videoPlaybackSwipeAdjustProgress">Régler la progression</string>

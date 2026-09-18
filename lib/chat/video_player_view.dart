@@ -29,6 +29,7 @@ import '../components/app_interactive_surface.dart';
 import '../components/photo_avatar.dart';
 import '../components/toast.dart';
 import '../media/video_view_compatibility.dart';
+import '../platform/fullscreen_system_ui.dart';
 import '../platform/player_brightness.dart';
 import '../platform/player_system_volume.dart';
 import '../platform/screen_wakelock.dart';
@@ -2058,9 +2059,14 @@ class _VideoPlayerViewState extends State<VideoPlayerView>
   Widget build(BuildContext context) {
     final c = _controller;
     final ready = c != null && c.value.isInitialized;
-    return ColoredBox(
-      color: Colors.black,
-      child: _playbackSurface(ready ? c : null),
+    return FullscreenSystemUi(
+      enabled:
+          widget.presentation == VideoPlayerPresentation.fullscreen &&
+          !_systemPiPActive,
+      child: ColoredBox(
+        color: Colors.black,
+        child: _playbackSurface(ready ? c : null),
+      ),
     );
   }
 
@@ -2248,9 +2254,21 @@ class _VideoPlayerViewState extends State<VideoPlayerView>
 
   Widget _playerChrome(BuildContext context, FVideoChromeScope scope) {
     _reusablePlayerActions = scope.actions;
+    return GestureDetector(
+      // Text and decorative chrome can hit-test without handling taps. Let
+      // their taps dismiss controls while buttons/sliders keep their gestures.
+      onTap: () => _dismissMenusAndControls(scope: scope),
+      child: _playerFullscreenChrome(context, scope),
+    );
+  }
+
+  Widget _playerFullscreenChrome(
+    BuildContext context,
+    FVideoChromeScope scope,
+  ) {
     final snapshot = scope.snapshot;
     final safePadding = MediaQuery.paddingOf(context);
-    if (_showsOnDemandLayout(context)) {
+    if (snapshot.controlsVisible && _showsOnDemandLayout(context)) {
       return _playerOnDemandChrome(context, scope, safePadding);
     }
     final standalone = _usesStandaloneFullscreenLayout(context);
@@ -2904,7 +2922,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView>
     _reusablePlayerActions = scope.actions;
     final controller = _controller;
     Widget surface = child;
-    if (_showsOnDemandLayout(context)) {
+    if (scope.snapshot.controlsVisible && _showsOnDemandLayout(context)) {
       final videoChild = surface;
       surface = LayoutBuilder(
         builder: (context, constraints) {

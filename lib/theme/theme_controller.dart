@@ -1162,7 +1162,9 @@ class ThemeController extends ChangeNotifier {
     _groupImageMessages = _prefs.getBool(_groupImageMessagesKey) ?? true;
     _hideBlockedUserMessages =
         _prefs.getBool(_hideBlockedUserMessagesKey) ?? false;
+    _liquidGlassBottomBar = _prefs.getBool(_liquidGlassBottomBarKey) ?? false;
     _showChannelsTab = _prefs.getBool(_showChannelsTabKey) ?? false;
+    _showContactsTab = _prefs.getBool(_showContactsTabKey) ?? true;
     _showMomentsTab = _prefs.getBool(_showMomentsTabKey) ?? true;
     _showShortVideos = _prefs.getBool(_showShortVideosKey) ?? true;
     _communitiesEnabled = _prefs.getBool(_communitiesEnabledKey) ?? true;
@@ -1262,7 +1264,9 @@ class ThemeController extends ChangeNotifier {
   static const _quickReactionsKey = 'quickReactions';
   static const _groupImageMessagesKey = 'groupImageMessages';
   static const _hideBlockedUserMessagesKey = 'hideBlockedUserMessages';
+  static const _liquidGlassBottomBarKey = 'liquidGlassBottomBar';
   static const _showChannelsTabKey = 'showChannelsTab';
+  static const _showContactsTabKey = 'showContactsTab';
   static const _showMomentsTabKey = 'showMomentsTab';
   static const _showShortVideosKey = 'showShortVideos';
   static const _communitiesEnabledKey = 'communitiesEnabled';
@@ -1344,7 +1348,9 @@ class ThemeController extends ChangeNotifier {
   late List<QuickReactionChoice> _quickReactions;
   bool _groupImageMessages = true;
   bool _hideBlockedUserMessages = false;
+  bool _liquidGlassBottomBar = false;
   bool _showChannelsTab = false;
+  bool _showContactsTab = true;
   bool _showMomentsTab = true;
   bool _showShortVideos = true;
   bool _communitiesEnabled = true;
@@ -1798,7 +1804,9 @@ class ThemeController extends ChangeNotifier {
       List.unmodifiable(_quickReactions);
   bool get groupImageMessages => _groupImageMessages;
   bool get hideBlockedUserMessages => _hideBlockedUserMessages;
+  bool get liquidGlassBottomBar => _liquidGlassBottomBar;
   bool get showChannelsTab => _showChannelsTab;
+  bool get showContactsTab => _showContactsTab;
   bool get showMomentsTab => _showMomentsTab;
   bool get showShortVideos => _showShortVideos;
   bool get communitiesEnabled => _communitiesEnabled;
@@ -2692,9 +2700,22 @@ class ThemeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  set liquidGlassBottomBar(bool value) {
+    if (_liquidGlassBottomBar == value) return;
+    _liquidGlassBottomBar = value;
+    _prefs.setBool(_liquidGlassBottomBarKey, value);
+    notifyListeners();
+  }
+
   set showChannelsTab(bool value) {
     _showChannelsTab = value;
     _prefs.setBool(_showChannelsTabKey, value);
+    notifyListeners();
+  }
+
+  set showContactsTab(bool value) {
+    _showContactsTab = value;
+    _prefs.setBool(_showContactsTabKey, value);
     notifyListeners();
   }
 

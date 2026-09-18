@@ -1362,6 +1362,8 @@
     <string name="featureBottomTabs">Bottom tabs</string>
     <string name="featureCommunitiesEnabled">Enable Communities</string>
     <string name="featureDisableSafetyNotice">Disable safety notice popup</string>
+    <string name="featureLiquidGlassBottomBar">Liquid glass bottom bar</string>
+    <string name="featureLiquidGlassBottomBarHint">Use a translucent, rounded bottom bar on phones and tablets.</string>
     <string name="featureSafety">Safety</string>
     <string name="featureTitle">Features</string>
     <string name="feedbackReportDescription">Describe what happened. The report includes the app build, device details, recent navigation activity, and TDLib operation names.</string>
@@ -2220,6 +2222,8 @@
     <string name="pollResultsUnableToLoadVoters">Unable to load voters</string>
     <string name="pollResultsVotesWithDetailedStatistics">{value1} votes · detailed statistics available</string>
     <string name="premiumLabel">Premium</string>
+    <string name="presenceConnecting">connecting</string>
+    <string name="presenceDisconnected">disconnected</string>
     <string name="presenceLastSeenRecently">last seen recently</string>
     <string name="presenceLastSeenWithinMonth">last seen within a month</string>
     <string name="presenceLastSeenWithinWeek">last seen within a week</string>
@@ -3387,6 +3391,8 @@
     <string name="videoPlaybackHorizontalSwipe">Horizontal swipe</string>
     <string name="videoPlaybackLeftVerticalSwipe">Left-side vertical swipe</string>
     <string name="videoPlaybackRightVerticalSwipe">Right-side vertical swipe</string>
+    <string name="videoPlaybackAndroidCompatibility">Video compatibility mode</string>
+    <string name="videoPlaybackAndroidCompatibilityHint">Helps prevent corrupted video on Android 14 and newer. Applies to videos opened after changing this setting.</string>
     <string name="videoPlaybackSettingsTitle">Video playback</string>
     <string name="videoPlaybackSwipeAdjustBrightness">Adjust brightness</string>
     <string name="videoPlaybackSwipeAdjustProgress">Adjust progress</string>

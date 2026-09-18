@@ -13,6 +13,7 @@ import 'package:mithka/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
 import '../app/app_navigator.dart';
+import '../app/bottom_bar_layout.dart';
 import '../app/ipad_window_chrome.dart';
 import '../app/primary_chat_launcher.dart';
 import '../chat/chat_view.dart';
@@ -246,6 +247,9 @@ class _ContactsViewState extends State<ContactsView> {
                     loading: _vm.contactsLoading,
                   ),
                 },
+                SliverToBoxAdapter(
+                  child: SizedBox(height: BottomBarInset.of(context)),
+                ),
               ],
             ),
           ),

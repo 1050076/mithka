@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/app_navigator.dart';
+import '../app/bottom_bar_layout.dart';
 import '../chats/chat_list_view_model.dart';
 import '../components/app_icons.dart';
 import '../components/photo_avatar.dart';
@@ -423,7 +424,9 @@ class _TopicChannelsViewState extends State<TopicChannelsView> {
             child: posts.isEmpty
                 ? _empty()
                 : ListView.separated(
-                    padding: EdgeInsets.zero,
+                    padding: EdgeInsets.only(
+                      bottom: BottomBarInset.of(context),
+                    ),
                     itemCount: posts.length,
                     separatorBuilder: (_, _) =>
                         const InsetDivider(leadingInset: 0),

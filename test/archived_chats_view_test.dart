@@ -221,4 +221,41 @@ void main() {
     expect(rows.singleWhere((row) => row.chat.id == 9).selected, isTrue);
     expect(rows.singleWhere((row) => row.chat.id == 10).selected, isFalse);
   });
+
+  testWidgets('archived chat exposes a swipe action to unarchive', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final theme = ThemeController(prefs);
+    addTearDown(theme.dispose);
+    final chat = ChatSummary(
+      id: 12,
+      title: 'Archived group',
+      lastMessage: 'A message',
+      lastMessageId: 11,
+      date: 1,
+      unreadCount: 0,
+      order: 1,
+      isMuted: false,
+    );
+    var unarchived = false;
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<ThemeController>.value(
+        value: theme,
+        child: MaterialApp(
+          home: ArchivedChatsView(
+            chats: [chat],
+            onUnarchive: (_) => unarchived = true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.drag(find.text('Archived group'), const Offset(-100, 0));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('archived-chat-unarchive')));
+    expect(unarchived, isTrue);
+  });
 }

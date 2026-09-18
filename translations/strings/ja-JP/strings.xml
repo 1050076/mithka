@@ -1358,6 +1358,8 @@
     <string name="featureBottomTabs">下部タブ</string>
     <string name="featureCommunitiesEnabled">コミュニティを有効にする</string>
     <string name="featureDisableSafetyNotice">安全通知のポップアップを無効にする</string>
+    <string name="featureLiquidGlassBottomBar">リキッドグラスのボトムバー</string>
+    <string name="featureLiquidGlassBottomBarHint">スマートフォンとタブレットで、半透明の角丸ボトムバーを使用します。</string>
     <string name="featureSafety">安全</string>
     <string name="featureTitle">機能</string>
     <string name="feedbackReportDescription">発生した問題を説明してください。アプリのビルド、端末情報、直近の画面遷移、TDLib の操作名が添付されます。</string>
@@ -2213,6 +2215,8 @@
     <string name="pollResultsUnableToLoadVoters">投票者を読み込めません</string>
     <string name="pollResultsVotesWithDetailedStatistics">{value1} 票 · 詳細な統計が利用可能</string>
     <string name="premiumLabel">Premium</string>
+    <string name="presenceConnecting">接続中</string>
+    <string name="presenceDisconnected">未接続</string>
     <string name="presenceLastSeenRecently">最終ログイン: 最近</string>
     <string name="presenceLastSeenWithinMonth">最終ログイン: 1か月以内</string>
     <string name="presenceLastSeenWithinWeek">最終ログイン: 1週間以内</string>
@@ -3379,6 +3383,8 @@
     <string name="videoPlaybackHorizontalSwipe">左右スワイプ</string>
     <string name="videoPlaybackLeftVerticalSwipe">左側の上下スワイプ</string>
     <string name="videoPlaybackRightVerticalSwipe">右側の上下スワイプ</string>
+    <string name="videoPlaybackAndroidCompatibility">動画の互換モード</string>
+    <string name="videoPlaybackAndroidCompatibilityHint">Android 14以降で動画の表示が乱れる問題を軽減します。変更後に開く動画に適用されます。</string>
     <string name="videoPlaybackSettingsTitle">動画再生</string>
     <string name="videoPlaybackSwipeAdjustBrightness">明るさを調整</string>
     <string name="videoPlaybackSwipeAdjustProgress">再生位置を調整</string>

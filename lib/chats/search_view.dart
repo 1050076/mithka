@@ -128,12 +128,20 @@ class DesktopInlineSearchController extends ChangeNotifier {
       _debouncing || _miniAppsLoading || _activeTabs.any(_model.isLoading);
 
   /// A chat-scoped search has no chat or Mini App hits to offer.
-  List<SearchTab> get _activeTabs => _scope == null
-      ? _searchTabs
-      : _searchTabs.where((tab) => tab != SearchTab.chats).toList();
+  List<SearchTab> get _activeTabs {
+    final filter = _tokens.filter;
+    if (filter != null) {
+      return _searchTabs
+          .where((tab) => tab.filter == filter.tdlibFilter)
+          .toList();
+    }
+    return _scope == null
+        ? _searchTabs
+        : _searchTabs.where((tab) => tab != SearchTab.chats).toList();
+  }
 
   List<TelegramMiniAppRecent> get _visibleMiniApps =>
-      _scope == null ? _miniApps : const [];
+      _scope == null && _tokens.filter == null ? _miniApps : const [];
   List<_DesktopInlineSearchSection> get _visibleSections {
     final sections = <_DesktopInlineSearchSection>[
       for (final tab in _activeTabs)
@@ -253,6 +261,7 @@ class DesktopInlineSearchController extends ChangeNotifier {
       _tokens.text.trim().isNotEmpty ||
       _tokens.inQuery != null ||
       _tokens.fromQuery != null ||
+      _tokens.filter != null ||
       _committedChat != null ||
       _committedSender != null;
 
@@ -262,7 +271,10 @@ class DesktopInlineSearchController extends ChangeNotifier {
     if (_disposed) return;
     _debouncing = false;
     _model.searchMany(query, _activeTabs, resultLimitPerTab: 6);
-    if (_scope == null && _model.senderUserId == null && query.isNotEmpty) {
+    if (_scope == null &&
+        _model.senderUserId == null &&
+        _tokens.filter == null &&
+        query.isNotEmpty) {
       _startMiniAppSearch(query);
     }
     notifyListeners();
@@ -656,7 +668,15 @@ class DesktopInlineSearchField extends StatelessWidget {
                   onSubmitted: (value) {
                     final query = value.trim();
                     if (query.isEmpty) return;
+                    final scope = controller.scope;
+                    final host = desktopInlineSearchHostContext(context);
                     controller.dismiss();
+                    if (scope != null) {
+                      if (host != null) {
+                        unawaited(_openScopedChatSearch(host, scope, query));
+                      }
+                      return;
+                    }
                     unawaited(Future<void>.sync(() => onSearchAll(query)));
                   },
                 ),
