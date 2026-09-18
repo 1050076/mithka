@@ -1479,6 +1479,9 @@ abstract final class AppStringKeys {
   static const emojiStatusSetRequiresPremiumFailed =
       'emojiStatusSetRequiresPremiumFailed';
   static const emojiStatusSetTitle = 'emojiStatusSetTitle';
+  static const featureLiquidGlassBottomBar = 'featureLiquidGlassBottomBar';
+  static const featureLiquidGlassBottomBarHint =
+      'featureLiquidGlassBottomBarHint';
   static const featureBottomTabs = 'featureBottomTabs';
   static const featureCommunitiesEnabled = 'featureCommunitiesEnabled';
   static const featureDisableSafetyNotice = 'featureDisableSafetyNotice';

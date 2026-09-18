@@ -384,11 +384,10 @@ void main() {
         },
       );
 
-      final editable = find.byType(EditableText).first;
-      Actions.invoke(
-        tester.element(editable),
-        const PasteTextIntent(SelectionChangedCause.keyboard),
-      );
+      await tester.tap(find.byType(TextField).first);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
       await tester.pumpAndSettle();
 
       expect(clipboardReads, 1);
@@ -458,6 +457,7 @@ void main() {
       );
       await _disposeDesktopComposer(tester, vm);
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets('desktop inline edit submits and restores the prior draft', (

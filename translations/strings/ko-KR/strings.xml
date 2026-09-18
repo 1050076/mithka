@@ -1358,6 +1358,8 @@
     <string name="featureBottomTabs">하단 탭</string>
     <string name="featureCommunitiesEnabled">커뮤니티 사용</string>
     <string name="featureDisableSafetyNotice">안전 안내 팝업 사용 안 함</string>
+    <string name="featureLiquidGlassBottomBar">리퀴드 글라스 하단 바</string>
+    <string name="featureLiquidGlassBottomBarHint">휴대폰과 태블릿에서 반투명한 둥근 하단 바를 사용합니다.</string>
     <string name="featureSafety">안전</string>
     <string name="featureTitle">기능</string>
     <string name="feedbackReportDescription">발생한 문제를 설명해 주세요. 앱 빌드, 기기 정보, 최근 화면 이동 및 TDLib 작업 이름이 포함됩니다.</string>

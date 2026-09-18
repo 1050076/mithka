@@ -1362,6 +1362,8 @@
     <string name="featureBottomTabs">Pestañas inferiores</string>
     <string name="featureCommunitiesEnabled">Activar comunidades</string>
     <string name="featureDisableSafetyNotice">Desactivar aviso de seguridad</string>
+    <string name="featureLiquidGlassBottomBar">Barra inferior de cristal líquido</string>
+    <string name="featureLiquidGlassBottomBarHint">Usar una barra inferior translúcida y redondeada en teléfonos y tabletas.</string>
     <string name="featureSafety">Seguridad</string>
     <string name="featureTitle">Funciones</string>
     <string name="feedbackReportDescription">Describe lo ocurrido. El informe incluye la compilación, datos del dispositivo, cambios de pantalla recientes y nombres de operaciones de TDLib.</string>

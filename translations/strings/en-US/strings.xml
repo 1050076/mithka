@@ -1362,6 +1362,8 @@
     <string name="featureBottomTabs">Bottom tabs</string>
     <string name="featureCommunitiesEnabled">Enable Communities</string>
     <string name="featureDisableSafetyNotice">Disable safety notice popup</string>
+    <string name="featureLiquidGlassBottomBar">Liquid glass bottom bar</string>
+    <string name="featureLiquidGlassBottomBarHint">Use a translucent, rounded bottom bar on phones and tablets.</string>
     <string name="featureSafety">Safety</string>
     <string name="featureTitle">Features</string>
     <string name="feedbackReportDescription">Describe what happened. The report includes the app build, device details, recent navigation activity, and TDLib operation names.</string>

@@ -1362,6 +1362,8 @@
     <string name="featureBottomTabs">Onglets inférieurs</string>
     <string name="featureCommunitiesEnabled">Activer les communautés</string>
     <string name="featureDisableSafetyNotice">Désactiver l’avertissement de sécurité</string>
+    <string name="featureLiquidGlassBottomBar">Barre inférieure en verre liquide</string>
+    <string name="featureLiquidGlassBottomBarHint">Utiliser une barre inférieure translucide aux coins arrondis sur téléphone et tablette.</string>
     <string name="featureSafety">Sécurité</string>
     <string name="featureTitle">Fonctionnalités</string>
     <string name="feedbackReportDescription">Décrivez le problème. Le rapport inclut la version, les données de l’appareil, les écrans récents et les noms d’opérations TDLib.</string>

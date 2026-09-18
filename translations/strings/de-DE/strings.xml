@@ -1362,6 +1362,8 @@
     <string name="featureBottomTabs">Untere Tabs</string>
     <string name="featureCommunitiesEnabled">Communities aktivieren</string>
     <string name="featureDisableSafetyNotice">Sicherheitshinweis deaktivieren</string>
+    <string name="featureLiquidGlassBottomBar">Untere Leiste aus Flüssigglas</string>
+    <string name="featureLiquidGlassBottomBarHint">Eine durchscheinende, abgerundete untere Leiste auf Smartphones und Tablets verwenden.</string>
     <string name="featureSafety">Sicherheit</string>
     <string name="featureTitle">Funktionen</string>
     <string name="feedbackReportDescription">Beschreibe das Problem. Der Bericht enthält App-Build, Gerätedaten, letzte Bildschirmwechsel und TDLib-Aktionsnamen.</string>
