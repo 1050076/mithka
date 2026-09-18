@@ -10,6 +10,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -54,6 +55,7 @@ import '../theme/theme_controller.dart';
 import '../update/update_checker.dart';
 import 'adaptive_split_layout.dart';
 import 'app_navigator.dart';
+import 'bottom_bar_layout.dart';
 import 'chat_deep_link_controller.dart';
 import 'chat_pane.dart';
 import 'desktop_chat_window.dart';
@@ -61,6 +63,7 @@ import 'desktop_navigation_rail.dart';
 import 'desktop_utility_window.dart';
 import 'detail_content_reveal.dart';
 import 'liquid_glass_bottom_bar.dart';
+import 'native_bottom_tab_bar.dart';
 import 'primary_chat_launcher.dart';
 import 'unread_badge_model.dart';
 
@@ -704,20 +707,24 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
                 ),
               )
             : const SizedBox.shrink();
-        return Column(
-          children: [
-            Expanded(child: _musicAwareContent(_stack(tabs))),
-            _fixedMusicPlayer(safeBottom: !showTabBar),
-            if (AppMotion.isReduced(context))
-              bottomBar
-            else
-              AnimatedSize(
-                duration: AppMotion.responsive,
-                curve: AppMotion.standard,
-                alignment: Alignment.bottomCenter,
-                child: bottomBar,
-              ),
-          ],
+        return BottomBarLayout(
+          overlay: theme.liquidGlassBottomBar && showTabBar,
+          body: _musicAwareContent(_stack(tabs)),
+          footer: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _fixedMusicPlayer(safeBottom: !showTabBar),
+              if (!theme.liquidGlassBottomBar && !AppMotion.isReduced(context))
+                AnimatedSize(
+                  duration: AppMotion.responsive,
+                  curve: AppMotion.standard,
+                  alignment: Alignment.bottomCenter,
+                  child: bottomBar,
+                )
+              else
+                bottomBar,
+            ],
+          ),
         );
       },
     );
@@ -1153,30 +1160,23 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
                       children: [
                         SizedBox(
                           width: sidebarWidth,
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: _LazyTabStack(
-                                  selection: selection,
-                                  items: tabs,
-                                  builder: (tab) =>
-                                      _tabletSidebarRoot(tab.index),
-                                ),
+                          child: BottomBarLayout(
+                            overlay: theme.liquidGlassBottomBar,
+                            body: _LazyTabStack(
+                              selection: selection,
+                              items: tabs,
+                              builder: (tab) => _tabletSidebarRoot(tab.index),
+                            ),
+                            footer: AnimatedBuilder(
+                              animation: _unread,
+                              builder: (context, _) => _MainBottomBar(
+                                selection: selection,
+                                onSelect: _select,
+                                items: tabs,
+                                onClearUnread: _chatListController.markAllRead,
+                                unread: _unread.countFor(theme.unreadBadgeMode),
                               ),
-                              AnimatedBuilder(
-                                animation: _unread,
-                                builder: (context, _) => _MainBottomBar(
-                                  selection: selection,
-                                  onSelect: _select,
-                                  items: tabs,
-                                  onClearUnread:
-                                      _chatListController.markAllRead,
-                                  unread: _unread.countFor(
-                                    theme.unreadBadgeMode,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                         Expanded(
@@ -2125,7 +2125,25 @@ class _MainBottomBar extends StatelessWidget {
     final c = context.colors;
     // The icons and their badges keep their size, so the bar only has to grow
     // by what the labels underneath them gain from the text scale.
-    final glass = context.watch<ThemeController>().liquidGlassBottomBar;
+    final theme = context.watch<ThemeController>();
+    final glass = theme.liquidGlassBottomBar;
+    if (glass && !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      return NativeBottomTabBar(
+        items: [
+          for (final item in items)
+            NativeBottomTabItem(
+              id: item.index,
+              label: item.label.l10n(context),
+              icon: item.icon,
+            ),
+        ],
+        selection: selection,
+        unread: unread,
+        unreadLabel: theme.unreadBadgeOverflowMode.format(unread),
+        onSelect: onSelect,
+        onClearUnread: onClearUnread,
+      );
+    }
     final labelGrowth = math.max(
       0.0,
       (MediaQuery.textScalerOf(context).scale(_labelSize) - _labelSize) *

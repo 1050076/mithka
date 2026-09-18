@@ -16,6 +16,7 @@ import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
 import '../app/app_navigator.dart';
+import '../app/bottom_bar_layout.dart';
 import '../app/ipad_window_chrome.dart';
 import '../chat/chat_picker_view.dart';
 import '../chat/chat_view.dart';
@@ -432,7 +433,10 @@ class _MomentsViewState extends State<MomentsView> {
             const NavHeader(title: AppStringKeys.tabMoments),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(top: AppSpacing.md),
+              padding: EdgeInsets.only(
+                top: AppSpacing.md,
+                bottom: BottomBarInset.of(context),
+              ),
               children: [
                 StoryShelf(
                   model: _stories,

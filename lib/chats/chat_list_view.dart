@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 
 import '../app/adaptive_split_layout.dart';
 import '../app/app_navigator.dart';
+import '../app/bottom_bar_layout.dart';
 import '../app/desktop_chat_list_title_bar_anchors.dart';
 import '../app/desktop_chat_window.dart';
 import '../app/ipad_window_chrome.dart';
@@ -2287,7 +2288,7 @@ class _ChatListViewState extends State<ChatListView>
                 return ListView(
                   primary: false,
                   physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
+                  padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
                   children: [
                     if (showSearch) _searchPill(),
                     SizedBox(
@@ -2304,7 +2305,7 @@ class _ChatListViewState extends State<ChatListView>
               return ListView.builder(
                 primary: false,
                 physics: const NeverScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
+                padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
                 itemCount:
                     (showSearch ? 1 : 0) +
                     entries.length +
@@ -2386,7 +2387,7 @@ class _ChatListViewState extends State<ChatListView>
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
               itemCount:
                   visibleRows +
                   (showLeadingControls ? 1 : 0) +
@@ -2414,7 +2415,7 @@ class _ChatListViewState extends State<ChatListView>
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
               children: [
                 if (showLeadingControls)
                   _archivePullSearchPill(hasPullDownArchiveSlot),
@@ -2427,6 +2428,7 @@ class _ChatListViewState extends State<ChatListView>
                   height: math.max(
                     180,
                     geo.maxHeight -
+                        BottomBarInset.of(context) -
                         searchHeight -
                         (showPulledDownArchive ? rowH : 0),
                   ),
@@ -2440,7 +2442,7 @@ class _ChatListViewState extends State<ChatListView>
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(bottom: BottomBarInset.of(context)),
               itemCount:
                   (showLeadingControls ? 1 : 0) +
                   entries.length +
