@@ -2140,7 +2140,7 @@ class _MainBottomBar extends StatelessWidget {
               child: AppInteractiveSurface(
                 key: ValueKey('bottom-tab-${items[i].index}'),
                 borderRadius: glass
-                    ? BorderRadius.circular(28)
+                    ? BorderRadius.circular(AppRadius.pill)
                     : BorderRadius.zero,
                 semanticLabel: items[i].label.l10n(context),
                 selected: selection == i,

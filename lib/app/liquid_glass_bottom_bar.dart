@@ -28,7 +28,7 @@ class LiquidGlassBottomBar extends StatelessWidget {
     final highContrast = MediaQuery.highContrastOf(context);
     const white = Color(0xFFFFFFFF);
     const black = Color(0xFF000000);
-    const radius = BorderRadius.all(Radius.circular(36));
+    const radius = BorderRadius.all(Radius.circular(AppRadius.pill));
     final rim = white.withValues(alpha: dark ? 0.22 : 0.85);
     final tint = colors.navBar.withValues(alpha: dark ? 0.78 : 0.64);
 
@@ -109,7 +109,9 @@ class LiquidGlassBottomBar extends StatelessWidget {
                                         'liquid-glass-selection',
                                       ),
                                       decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(30),
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadius.pill,
+                                        ),
                                         color: colors.linkBlue.withValues(
                                           alpha: highContrast
                                               ? 0.22
