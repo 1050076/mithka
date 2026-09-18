@@ -4875,15 +4875,8 @@ class _MessageBubbleState extends State<MessageBubble>
     final geometry = _imagePreviewGeometry();
     final imageSize = geometry.contentSize;
     final caption = _caption();
-    final widensForCaption =
-        caption != null && _usesBlurredImageFrame(imageSize);
-    final frameSize = widensForCaption
-        ? Size(
-            _mediaMaxWidth(),
-            math.max(imageSize.height, geometry.frameSize.height),
-          )
-        : geometry.frameSize;
-    final usesBlurredFrame = geometry.needsBlurredFill || widensForCaption;
+    final frameSize = geometry.frameSize;
+    final usesBlurredFrame = geometry.needsBlurredFill;
     final grouped = _groupsMediaCaption(caption);
     final mediaRadius = grouped && _showsMessageBubbleSurface ? 0.0 : 10.0;
     final mediaBorderRadius = _messageBorderRadius(mediaRadius);
@@ -4961,6 +4954,7 @@ class _MessageBubbleState extends State<MessageBubble>
           );
     return _mediaWithCaption(
       media: mediaWithApplyAction,
+      mediaWidth: frameSize.width,
       caption: caption,
       outgoing: outgoing,
     );
@@ -5025,6 +5019,7 @@ class _MessageBubbleState extends State<MessageBubble>
 
   Widget _mediaWithCaption({
     required Widget media,
+    required double mediaWidth,
     required String? caption,
     required bool outgoing,
   }) {
@@ -5039,7 +5034,7 @@ class _MessageBubbleState extends State<MessageBubble>
                     : 'messageRepliedMedia-${message.id}',
               ),
               outgoing: outgoing,
-              constraints: BoxConstraints(maxWidth: _mediaMaxWidth()),
+              constraints: BoxConstraints.tightFor(width: mediaWidth),
               padding: EdgeInsets.zero,
               borderRadius: _messageBorderRadius(8),
               child: Column(
@@ -5103,6 +5098,10 @@ class _MessageBubbleState extends State<MessageBubble>
         ? message.translationEntities
         : _activeTextEntities;
     return Container(
+      // The media owns the attached bubble's width. Letting the caption (or
+      // its translation/attribution) size this column leaves an empty strip
+      // beside portrait previews, which have a smaller fixed width.
+      width: mediaWidth,
       decoration: _showsMessageBubbleSurface
           ? BoxDecoration(
               color: outgoing ? _outgoingBubbleColor : _incomingBubbleColor,
@@ -5304,6 +5303,7 @@ class _MessageBubbleState extends State<MessageBubble>
     );
     return _mediaWithCaption(
       media: media,
+      mediaWidth: size.width,
       caption: caption,
       outgoing: outgoing,
     );
@@ -5338,6 +5338,7 @@ class _MessageBubbleState extends State<MessageBubble>
     );
     return _mediaWithCaption(
       media: media,
+      mediaWidth: size.width,
       caption: caption,
       outgoing: outgoing,
     );
@@ -5359,15 +5360,6 @@ class _MessageBubbleState extends State<MessageBubble>
       availableWidth: _mediaMaxWidth(),
       maxHeight: telegramChatMediaPreviewMaxHeight,
     );
-  }
-
-  bool _usesBlurredImageFrame(Size imageSize) {
-    final w = message.imageWidth;
-    final h = message.imageHeight;
-    if (w == null || h == null || w <= 0 || h <= 0) return false;
-    final maxWidth = _mediaMaxWidth();
-    final sourceAspect = w / h;
-    return sourceAspect <= 0.68 && imageSize.width < maxWidth * 0.78;
   }
 
   /// The height budget a rich block's media shares with ordinary chat media:
