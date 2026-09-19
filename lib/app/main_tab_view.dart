@@ -49,7 +49,6 @@ import '../tdlib/td_models.dart';
 import '../tdlib/td_requests.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_theme.dart';
-import '../theme/global_theme_view.dart';
 import '../theme/telegram_cloud_theme.dart';
 import '../theme/theme_controller.dart';
 import '../update/update_checker.dart';
@@ -552,14 +551,6 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
     );
   }
 
-  void _openGlobalThemeSelector() {
-    unawaited(
-      Navigator.of(context, rootNavigator: true).push<void>(
-        AppPageRoute<void>(pageBuilder: (_, _, _) => const GlobalThemeView()),
-      ),
-    );
-  }
-
   Future<void> _openDesktopSavedMessages() async {
     final accounts = context.read<AccountStore>();
     var userId = accounts.activeUserId;
@@ -814,7 +805,6 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
         DesktopNavigationDestination(
           label: tab.label.l10n(context),
           icon: tab.icon,
-          bottom: tab.index == 2 || tab.index == 3,
         ),
     ];
     final fileLabel = AppStrings.t(AppStringKeys.topicPostContentFile);
@@ -842,12 +832,6 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
         icon: HeroAppIcons.folder,
         onTap: () =>
             _openDesktopUtility(DesktopUtilityWindowKind.files, fileLabel),
-      ),
-      DesktopNavigationAction(
-        id: 'appearance',
-        label: AppStrings.t(AppStringKeys.appearanceTitle),
-        icon: HeroAppIcons.palette,
-        onTap: _openGlobalThemeSelector,
       ),
     ];
     // Recomputed on each rail rebuild: the premium gate below changes after
@@ -933,7 +917,9 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
       ]),
       builder: (context, _) => DesktopNavigationRail(
         destinations: destinations,
-        folders: _chatListController.sideFolders.value,
+        folders: activeTabIndex == 0
+            ? _chatListController.sideFolders.value
+            : null,
         selection: selection,
         onSelect: _select,
         unread: _unread.countFor(theme.unreadBadgeMode),

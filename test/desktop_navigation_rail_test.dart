@@ -12,93 +12,91 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets(
-    'desktop folders scroll while lower destinations stay above account switcher',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      final theme = ThemeController(await SharedPreferences.getInstance());
-      addTearDown(theme.dispose);
-      var selection = -1;
-      int? folderSelection;
-      await tester.pumpWidget(
-        ChangeNotifierProvider<ThemeController>.value(
-          value: theme,
-          child: MaterialApp(
-            theme: ThemeData(extensions: [AppColors.light]),
-            home: Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                height: 500,
-                child: DesktopNavigationRail(
-                  destinations: const [
-                    DesktopNavigationDestination(
-                      label: 'Messages',
-                      icon: HeroAppIcons.solidMessage,
-                    ),
-                    DesktopNavigationDestination(
-                      label: 'Contacts',
-                      icon: HeroAppIcons.users,
-                      bottom: true,
-                    ),
-                    DesktopNavigationDestination(
-                      label: 'Moments',
-                      icon: HeroAppIcons.arrowsRotate,
-                      bottom: true,
-                    ),
-                  ],
-                  folders: ChatFolderRail(
-                    filters: [
-                      for (var i = 0; i < 20; i++)
-                        ChatFilterOption(title: 'Folder $i', folderId: i),
-                    ],
-                    selectedFolderId: null,
-                    onSelect: (folder) => folderSelection = folder.folderId,
+  testWidgets('desktop folders scroll below fixed top destinations', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final theme = ThemeController(await SharedPreferences.getInstance());
+    addTearDown(theme.dispose);
+    var selection = -1;
+    int? folderSelection;
+    await tester.pumpWidget(
+      ChangeNotifierProvider<ThemeController>.value(
+        value: theme,
+        child: MaterialApp(
+          theme: ThemeData(extensions: [AppColors.light]),
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              height: 500,
+              child: DesktopNavigationRail(
+                destinations: const [
+                  DesktopNavigationDestination(
+                    label: 'Messages',
+                    icon: HeroAppIcons.solidMessage,
                   ),
-                  onSelectAccount: (_) {},
-                  selection: 0,
-                  unread: 4,
-                  onClearUnread: () {},
-                  onSelect: (value) => selection = value,
+                  DesktopNavigationDestination(
+                    label: 'Contacts',
+                    icon: HeroAppIcons.users,
+                  ),
+                  DesktopNavigationDestination(
+                    label: 'Moments',
+                    icon: HeroAppIcons.arrowsRotate,
+                  ),
+                ],
+                folders: ChatFolderRail(
+                  filters: [
+                    for (var i = 0; i < 20; i++)
+                      ChatFilterOption(title: 'Folder $i', folderId: i),
+                  ],
+                  selectedFolderId: null,
+                  onSelect: (folder) => folderSelection = folder.folderId,
                 ),
+                onSelectAccount: (_) {},
+                selection: 0,
+                unread: 4,
+                onClearUnread: () {},
+                onSelect: (value) => selection = value,
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
 
-      expect(
-        tester
-            .getSize(find.byKey(const ValueKey('desktop-navigation-rail')))
-            .width,
-        desktopNavigationRailWidth,
-      );
-      expect(find.bySemanticsLabel('Messages'), findsOneWidget);
-      expect(find.bySemanticsLabel('Contacts'), findsOneWidget);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('desktop-navigation-rail')))
+          .width,
+      desktopNavigationRailWidth,
+    );
+    expect(find.bySemanticsLabel('Messages'), findsOneWidget);
+    expect(find.bySemanticsLabel('Contacts'), findsOneWidget);
 
-      final contacts = find.byKey(const ValueKey('desktop-navigation-item-1'));
-      final moments = find.byKey(const ValueKey('desktop-navigation-item-2'));
-      final account = find.byKey(const ValueKey('desktop-account-switcher'));
-      final contactsRect = tester.getRect(contacts);
-      expect(
-        contactsRect.bottom,
-        lessThanOrEqualTo(tester.getRect(moments).top),
-      );
-      expect(
-        tester.getRect(moments).bottom,
-        lessThanOrEqualTo(tester.getRect(account).top),
-      );
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('side-folder-15')),
-        120,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('side-folder-15')));
-      expect(folderSelection, 15);
-      expect(tester.getRect(contacts), contactsRect);
-      await tester.tap(find.bySemanticsLabel('Contacts'));
-      expect(selection, 1);
-    },
-  );
+    final contacts = find.byKey(const ValueKey('desktop-navigation-item-1'));
+    final moments = find.byKey(const ValueKey('desktop-navigation-item-2'));
+    final account = find.byKey(const ValueKey('desktop-account-switcher'));
+    final contactsRect = tester.getRect(contacts);
+    expect(
+      tester.getRect(moments).bottom,
+      lessThanOrEqualTo(tester.getRect(find.byType(ChatFolderRail)).top),
+    );
+    expect(contactsRect.bottom, lessThanOrEqualTo(tester.getRect(moments).top));
+    expect(
+      tester.getRect(moments).bottom,
+      lessThanOrEqualTo(tester.getRect(account).top),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('side-folder-15')),
+      120,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('side-folder-15')));
+    expect(folderSelection, 15);
+    expect(tester.getRect(contacts), contactsRect);
+    await tester.tap(find.bySemanticsLabel('Contacts'));
+    expect(selection, 1);
+  });
 
   testWidgets(
     'desktop rail switches accounts and opens utilities from anchored menu',
@@ -109,7 +107,6 @@ void main() {
       int? selectedAccount;
       var callsOpened = false;
       var settingsOpened = false;
-      var themeSelectorOpened = false;
       var themeToggled = false;
       String? selectedLanguage;
 
@@ -171,12 +168,6 @@ void main() {
                       label: 'Files',
                       icon: HeroAppIcons.folder,
                       onTap: () {},
-                    ),
-                    DesktopNavigationAction(
-                      id: 'appearance',
-                      label: 'Theme',
-                      icon: HeroAppIcons.palette,
-                      onTap: () => themeSelectorOpened = true,
                     ),
                   ],
                   languageOptions: [
@@ -283,7 +274,7 @@ void main() {
         find.byKey(const ValueKey('desktop-application-action-files')),
         findsOneWidget,
       );
-      final rows = ['calls', 'saved-messages', 'files', 'appearance']
+      final rows = ['calls', 'saved-messages', 'files']
           .map(
             (id) => tester.getRect(
               find.byKey(ValueKey('desktop-application-action-$id')),
@@ -333,21 +324,8 @@ void main() {
       await tester.pump();
       expect(
         find.byKey(const ValueKey('desktop-application-action-appearance')),
-        findsOneWidget,
-      );
-      await tester.tap(
-        find.byKey(const ValueKey('desktop-application-action-appearance')),
-      );
-      await tester.pump();
-      expect(themeSelectorOpened, isTrue);
-      expect(
-        find.byKey(const ValueKey('desktop-application-menu-panel')),
         findsNothing,
       );
-      await tester.tap(
-        find.byKey(const ValueKey('desktop-application-menu-button')),
-      );
-      await tester.pump();
       await tester.tap(
         find.byKey(const ValueKey('desktop-application-action-settings')),
       );

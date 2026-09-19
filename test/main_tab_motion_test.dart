@@ -338,6 +338,26 @@ void main() {
       final contacts = tester.widget<ContactsView>(find.byType(ContactsView));
       expect(contacts.desktopSidebar, isTrue);
       expect(find.byKey(const ValueKey('contacts-root-header')), findsNothing);
+      final chatController = tester
+          .widget<ChatListView>(find.byType(ChatListView, skipOffstage: false))
+          .controller!;
+      const folderKey = ValueKey('test-desktop-folder-rail');
+      chatController.publishSideFolders(
+        Object(),
+        const SizedBox(key: folderKey),
+      );
+      await tester.pump();
+      expect(find.byKey(folderKey), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('desktop-navigation-item-0')));
+      await tester.pump();
+      chatController.publishSideFolders(
+        Object(),
+        const SizedBox(key: folderKey),
+      );
+      await tester.pump();
+      expect(find.byKey(folderKey), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('desktop-navigation-item-1')));
+      await tester.pump();
       expect(
         find.byKey(const ValueKey('contacts-desktop-toolbar')),
         findsOneWidget,

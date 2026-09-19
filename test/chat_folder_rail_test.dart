@@ -2,8 +2,20 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mithka/chats/chat_list_view.dart';
 import 'package:mithka/chats/chat_list_view_model.dart';
+import 'package:mithka/components/app_icons.dart';
+import 'package:mithka/components/chat_folder_icons.dart';
 
 void main() {
+  test('folder icons map configured names and safely fall back', () {
+    expect(chatFolderIcon('Work'), HeroAppIcons.briefcase);
+    expect(chatFolderIcon('Private'), HeroAppIcons.circleUser);
+    expect(chatFolderIcon('Game'), HeroAppIcons.puzzle);
+    expect(chatFolderIcon('Unread'), HeroAppIcons.message);
+    expect(chatFolderIcon('All'), HeroAppIcons.inbox);
+    expect(chatFolderIcon('Custom'), HeroAppIcons.folder);
+    expect(chatFolderIcon('future-icon'), HeroAppIcons.folder);
+  });
+
   testWidgets(
     'folder rail scrolls and changes selection without moving lower navigation',
     (tester) async {
@@ -34,6 +46,7 @@ void main() {
                                   ChatFilterOption(
                                     title: 'Folder $i',
                                     folderId: i,
+                                    iconName: 'Work',
                                   ),
                               ],
                               selectedFolderId: selected,
@@ -62,6 +75,13 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('side-folder-10')));
       await tester.pumpAndSettle();
       expect(selected, 10);
+      final folderIcon = tester.widget<AppIcon>(
+        find.descendant(
+          of: find.byKey(const ValueKey('side-folder-10')),
+          matching: find.byType(AppIcon),
+        ),
+      );
+      expect(folderIcon.icon, HeroAppIcons.briefcase);
       expect(tester.getRect(find.byKey(navigationKey)), navigationRect);
       expect(tester.takeException(), isNull);
     },

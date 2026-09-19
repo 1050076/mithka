@@ -27,10 +27,15 @@ import 'chat_delete_policy.dart';
 import 'chat_removal_actions.dart';
 
 class ChatFilterOption {
-  const ChatFilterOption({required this.title, this.folderId});
+  const ChatFilterOption({
+    required this.title,
+    this.folderId,
+    this.iconName = 'Custom',
+  });
 
   final String title;
   final int? folderId;
+  final String iconName;
 
   bool get isAll => folderId == null;
 }
@@ -313,7 +318,13 @@ class ChatListViewModel extends ChangeNotifier {
       final id = folder.integer('id') ?? folder.integer('chat_folder_id');
       if (id == null) continue;
       final title = _folderTitle(folder, id);
-      folders.add(ChatFilterOption(title: title, folderId: id));
+      folders.add(
+        ChatFilterOption(
+          title: title,
+          folderId: id,
+          iconName: folder.obj('icon')?.str('name') ?? 'Custom',
+        ),
+      );
     }
     _filters = folders;
     if (_selectedFilter.folderId != null &&
@@ -323,6 +334,10 @@ class ChatListViewModel extends ChangeNotifier {
       _prefetchMainChats();
       _resort();
     }
+    _selectedFilter = _filters.firstWhere(
+      (filter) => filter.folderId == _selectedFilter.folderId,
+      orElse: () => _filters.first,
+    );
     _notifyIfAlive();
   }
 
@@ -350,15 +365,17 @@ class ChatListViewModel extends ChangeNotifier {
         .then((folder) {
           if (_disposed) return;
           _resolvingFolders.remove(id);
-          final title = _folderTitle(folder, id);
+          final option = ChatFilterOption(
+            title: _folderTitle(folder, id),
+            folderId: id,
+            iconName: folder.obj('icon')?.str('name') ?? 'Custom',
+          );
           _filters = [
             for (final filter in _filters)
-              filter.folderId == id
-                  ? ChatFilterOption(title: title, folderId: id)
-                  : filter,
+              filter.folderId == id ? option : filter,
           ];
           if (_selectedFilter.folderId == id) {
-            _selectedFilter = ChatFilterOption(title: title, folderId: id);
+            _selectedFilter = option;
           }
           _notifyIfAlive();
         })

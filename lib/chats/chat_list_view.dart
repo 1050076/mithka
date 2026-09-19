@@ -36,6 +36,7 @@ import '../communities/community_view.dart';
 import '../components/app_icons.dart';
 import '../components/app_interactive_surface.dart';
 import '../components/app_press_ripple.dart';
+import '../components/chat_folder_icons.dart';
 import '../components/drawer_controller.dart' as dc;
 import '../components/photo_avatar.dart';
 import '../components/toast.dart';
@@ -169,8 +170,8 @@ class ChatFolderRail extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AppIcon(
-                    filter.isAll ? HeroAppIcons.inbox : HeroAppIcons.folder,
+                  ChatFolderIcon(
+                    filter.isAll ? 'All' : filter.iconName,
                     size: 22,
                     color: filter.folderId == selectedFolderId
                         ? c.linkBlue
@@ -2242,12 +2243,10 @@ class _ChatListViewState extends State<ChatListView>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          AppIcon(
-                            filter.isAll
-                                ? HeroAppIcons.inbox
-                                : HeroAppIcons.folder,
+                          ChatFolderIcon(
+                            filter.isAll ? 'All' : filter.iconName,
                             size: 17,
-                            color: accent,
+                            color: accent ?? c.textSecondary,
                           ),
                           const SizedBox(width: AppSpacing.xs + 1),
                           ConstrainedBox(
@@ -3583,8 +3582,8 @@ class ChatFilterMenu extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      AppIcon(
-                        filter.isAll ? HeroAppIcons.inbox : HeroAppIcons.folder,
+                      ChatFolderIcon(
+                        filter.isAll ? 'All' : filter.iconName,
                         size: AppMetric.popupMenuIconSlot() - 3,
                         color: c.textPrimary,
                       ),
