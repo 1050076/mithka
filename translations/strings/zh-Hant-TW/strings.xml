@@ -3423,4 +3423,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">發送前查看錄音。發送選項包括靜默傳送、調度、效果和一次性檢視。</string>
     <string name="voiceNotePreviewVoiceMessage">語音訊息</string>
+    <string name="mediaSpoilerReveal">劇透內容，點擊顯示</string>
 </resources>

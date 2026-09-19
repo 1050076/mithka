@@ -25,6 +25,7 @@ import '../chat/custom_emoji.dart';
 import '../chat/forward_options.dart';
 import '../chat/image_preview.dart';
 import '../chat/media_album_layout.dart';
+import '../chat/media_spoiler.dart';
 import '../chat/message_reaction_availability.dart';
 import '../chat/music_player_controller.dart';
 import '../chat/outgoing_attachment.dart';
@@ -1519,7 +1520,7 @@ class _ChannelMomentsViewState extends State<ChannelMomentsView> {
       final quoted = TDParse.message(raw);
       if (quoted == null) return;
       message.replyToPreview = _replyPreview(quoted);
-      message.replyToImage = quoted.image;
+      message.replyToImage = quoted.previewImage;
       message.replyToImageWidth = quoted.imageWidth;
       message.replyToImageHeight = quoted.imageHeight;
       message.replyToSender = await _senderName(quoted) ?? post.channel.title;
@@ -4877,7 +4878,11 @@ class _PostImageGroup extends StatelessWidget {
       key: ValueKey('moments-media-${messages[index].id}'),
       behavior: HitTestBehavior.opaque,
       onTap: () => _openMedia(context, messages[index]),
-      child: child,
+      child: MessageMediaSpoiler(
+        message: messages[index],
+        accountSlot: accountSlot,
+        child: child,
+      ),
     );
   }
 
@@ -4896,7 +4901,13 @@ class _PostImageGroup extends StatelessWidget {
   }
 
   VideoPlaybackQueue _videoQueue(ChatMessage current) {
-    final videos = messages.where((message) => message.video != null).toList();
+    final videos = messages
+        .where(
+          (message) =>
+              message.video != null &&
+              canPreviewMediaAlongside(message, current),
+        )
+        .toList();
     if (!videos.any((message) => message.id == current.id)) videos.add(current);
     final index = videos.indexWhere((message) => message.id == current.id);
     return VideoPlaybackQueue(
@@ -4920,7 +4931,12 @@ class _PostImageGroup extends StatelessWidget {
 
   void _openImage(BuildContext context, ChatMessage startMessage) {
     final photoMessages = messages
-        .where((message) => message.isPhoto && message.image != null)
+        .where(
+          (message) =>
+              message.isPhoto &&
+              message.image != null &&
+              canPreviewMediaAlongside(message, startMessage),
+        )
         .toList();
     final refs = photoMessages.map((message) => message.image!).toList();
     if (refs.isEmpty) return;

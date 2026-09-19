@@ -48,6 +48,7 @@ import 'link_handler.dart';
 import 'location_detail_view.dart';
 import 'looping_video_view.dart';
 import 'media_preview_geometry.dart';
+import 'media_spoiler.dart';
 import 'message_action_menu.dart';
 import 'message_reply_count_badge.dart';
 import 'message_special_content.dart';
@@ -2579,7 +2580,20 @@ class _MessageBubbleState extends State<MessageBubble>
       ),
     );
     if (block.hasSpoiler) {
-      media = _RichSpoiler(color: _colors.card, child: media);
+      media = MediaSpoiler(
+        identity: (
+          TdClient.shared.activeSlot,
+          message.chatId,
+          message.id,
+          image.id,
+        ),
+        enabled: true,
+        miniThumbnail: image.miniThumb,
+        width: size.width,
+        height: size.height,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        child: media,
+      );
     }
     return _richMediaWithCaption(media, block, outgoing);
   }
@@ -2635,7 +2649,20 @@ class _MessageBubbleState extends State<MessageBubble>
       ),
     );
     if (block.hasSpoiler) {
-      media = _RichSpoiler(color: _colors.card, child: media);
+      media = MediaSpoiler(
+        identity: (
+          TdClient.shared.activeSlot,
+          message.chatId,
+          message.id,
+          block.video?.id,
+        ),
+        enabled: true,
+        miniThumbnail: block.image?.miniThumb,
+        width: size.width,
+        height: size.height,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        child: media,
+      );
     }
     return _richMediaWithCaption(media, block, outgoing);
   }
@@ -2841,7 +2868,8 @@ class _MessageBubbleState extends State<MessageBubble>
     final items = <TdFileRef>[];
     final indexes = <int?>[];
     for (final child in media) {
-      final image = child.kind == RichMessageBlockKind.photo
+      final image =
+          child.kind == RichMessageBlockKind.photo && !child.hasSpoiler
           ? child.image
           : null;
       if (image == null) {
@@ -2860,10 +2888,42 @@ class _MessageBubbleState extends State<MessageBubble>
     List<TdFileRef> photoGalleryItems = const [],
     int? photoGalleryIndex,
   }) {
+    final child = _richMediaThumbnailContent(
+      block,
+      outgoing,
+      photoGalleryItems: photoGalleryItems,
+      photoGalleryIndex: photoGalleryIndex,
+    );
+    if (!block.hasSpoiler) return child;
+    return MediaSpoiler(
+      identity: (
+        TdClient.shared.activeSlot,
+        message.chatId,
+        message.id,
+        block.image?.id,
+        block.video?.id,
+      ),
+      enabled: true,
+      miniThumbnail: block.image?.miniThumb,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: child,
+    );
+  }
+
+  Widget _richMediaThumbnailContent(
+    RichMessageBlock block,
+    bool outgoing, {
+    List<TdFileRef> photoGalleryItems = const [],
+    int? photoGalleryIndex,
+  }) {
     if (block.kind == RichMessageBlockKind.photo && block.image != null) {
       return GestureDetector(
         onTap: () {
           final openGallery = widget.onOpenImageGallery;
+          if (block.hasSpoiler && openGallery != null) {
+            openGallery(items: [block.image!], startIndex: 0);
+            return;
+          }
           if (openGallery != null &&
               photoGalleryIndex != null &&
               photoGalleryItems.isNotEmpty) {
@@ -4953,7 +5013,13 @@ class _MessageBubbleState extends State<MessageBubble>
             ],
           );
     return _mediaWithCaption(
-      media: mediaWithApplyAction,
+      media: MessageMediaSpoiler(
+        message: message,
+        width: frameSize.width,
+        height: frameSize.height,
+        borderRadius: mediaBorderRadius,
+        child: mediaWithApplyAction,
+      ),
       mediaWidth: frameSize.width,
       caption: caption,
       outgoing: outgoing,
@@ -5302,7 +5368,13 @@ class _MessageBubbleState extends State<MessageBubble>
       ),
     );
     return _mediaWithCaption(
-      media: media,
+      media: MessageMediaSpoiler(
+        message: message,
+        width: size.width,
+        height: size.height,
+        borderRadius: _messageBorderRadius(mediaRadius),
+        child: media,
+      ),
       mediaWidth: size.width,
       caption: caption,
       outgoing: outgoing,
@@ -5337,7 +5409,13 @@ class _MessageBubbleState extends State<MessageBubble>
       ),
     );
     return _mediaWithCaption(
-      media: media,
+      media: MessageMediaSpoiler(
+        message: message,
+        width: size.width,
+        height: size.height,
+        borderRadius: _messageBorderRadius(mediaRadius),
+        child: media,
+      ),
       mediaWidth: size.width,
       caption: caption,
       outgoing: outgoing,
@@ -6000,49 +6078,6 @@ class _RichDetailsBlockState extends State<_RichDetailsBlock> {
             ),
         ],
       ),
-    );
-  }
-}
-
-class _RichSpoiler extends StatefulWidget {
-  const _RichSpoiler({required this.color, required this.child});
-
-  final Color color;
-  final Widget child;
-
-  @override
-  State<_RichSpoiler> createState() => _RichSpoilerState();
-}
-
-class _RichSpoilerState extends State<_RichSpoiler> {
-  bool _revealed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        widget.child,
-        if (!_revealed)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => setState(() => _revealed = true),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: widget.color,
-                  borderRadius: BorderRadius.circular(AppRadius.control),
-                ),
-                child: Center(
-                  child: AppIcon(
-                    HeroAppIcons.eye,
-                    size: 22,
-                    color: context.colors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

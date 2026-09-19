@@ -3518,6 +3518,7 @@ abstract final class AppStringKeys {
       'messageSendOptionsDeliveryTime';
   static const messageSendOptionsHideWithSpoiler =
       'messageSendOptionsHideWithSpoiler';
+  static const mediaSpoilerReveal = 'mediaSpoilerReveal';
   static const messageSendOptionsInOneHour = 'messageSendOptionsInOneHour';
   static const messageSendOptionsMedia = 'messageSendOptionsMedia';
   static const messageSendOptionsMessageEffect =

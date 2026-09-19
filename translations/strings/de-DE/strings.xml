@@ -3431,4 +3431,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">Überprüfen Sie die Aufnahme vor dem Senden. Zu den Sendeoptionen gehören stille Zustellung, Planung, Effekte und einmalige Ansicht.</string>
     <string name="voiceNotePreviewVoiceMessage">Sprachnachricht</string>
+    <string name="mediaSpoilerReveal">Spoiler. Zum Anzeigen tippen</string>
 </resources>

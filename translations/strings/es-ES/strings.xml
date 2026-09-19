@@ -3431,4 +3431,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">Revise la grabación antes de enviarla. Las opciones de envío incluyen entrega silenciosa, programación, efectos y visualización única.</string>
     <string name="voiceNotePreviewVoiceMessage">Mensaje de voz</string>
+    <string name="mediaSpoilerReveal">Spoiler. Toca para mostrar</string>
 </resources>

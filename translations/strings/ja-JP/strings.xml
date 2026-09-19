@@ -3423,4 +3423,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">送信する前に録音を確認してください。送信オプションには、サイレント配信、スケジュール、エフェクト、ビューワンスが含まれます。</string>
     <string name="voiceNotePreviewVoiceMessage">音声</string>
+    <string name="mediaSpoilerReveal">ネタバレ。タップして表示</string>
 </resources>
