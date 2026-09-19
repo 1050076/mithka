@@ -9,16 +9,13 @@ import 'package:mithka/app/horizontal_safe_viewport.dart';
 
 void main() {
   testWidgets(
-    'native inner-display geometry moves the rail left without remounting content',
+    'native geometry keeps the rail in system space across Duo displays',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       const channel = MethodChannel('mithka/window_geometry');
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         channel,
-        (_) async => {
-          'topFraction': 0.25,
-          'leadingNavigation': tester.view.physicalSize.width > 700,
-        },
+        (_) async => {'topFraction': 0.25},
       );
       addTearDown(
         () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -67,11 +64,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester.getRect(find.byKey(railKey)),
-        const Rect.fromLTWH(0, 8, 72, 627),
+        const Rect.fromLTWH(867, 167.25, 84, 467.75),
       );
       expect(
         tester.getRect(find.byKey(contentKey)),
-        const Rect.fromLTWH(72, 0, 795, 669),
+        const Rect.fromLTWH(0, 0, 867, 669),
       );
       expect(tester.element(find.byKey(contentKey)), same(element));
       expect(tester.takeException(), isNull);

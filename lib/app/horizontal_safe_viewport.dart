@@ -28,7 +28,6 @@ class _HorizontalSafeViewportState extends State<HorizontalSafeViewport> {
   static const _geometryChannel = MethodChannel('mithka/window_geometry');
   MediaQueryData? _queriedMedia;
   double? _sideTopFraction;
-  bool _leadingNavigation = false;
 
   void _refreshSideGeometry(MediaQueryData media) {
     if (!widget.sideNavigation ||
@@ -42,21 +41,18 @@ class _HorizontalSafeViewportState extends State<HorizontalSafeViewport> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       double? fraction;
-      var leading = false;
       try {
         final geometry = await _geometryChannel
             .invokeMapMethod<String, dynamic>('sideNavigationGeometry');
         fraction = (geometry?['topFraction'] as num?)?.toDouble();
-        leading = geometry?['leadingNavigation'] == true;
       } on MissingPluginException {
         // Older native builds and widget tests retain a conservative fallback.
       } on PlatformException {
         // Geometry will be refreshed on the next window change.
       }
       if (!mounted || !identical(_queriedMedia, media)) return;
-      if (fraction != _sideTopFraction || leading != _leadingNavigation) {
+      if (fraction != _sideTopFraction) {
         _sideTopFraction = fraction;
-        _leadingNavigation = leading;
         _entry.markNeedsBuild();
       }
     });
@@ -83,7 +79,7 @@ class _HorizontalSafeViewportState extends State<HorizontalSafeViewport> {
   Widget _buildViewport(BuildContext context) {
     final media = MediaQuery.of(context);
     _refreshSideGeometry(media);
-    final left = media.padding.left + (_leadingNavigation ? 72 : 0);
+    final left = media.padding.left;
     final right = media.padding.right;
     final safeMedia = media.removePadding(removeLeft: true, removeRight: true);
     return Padding(
@@ -112,7 +108,6 @@ class _HorizontalSafeViewportState extends State<HorizontalSafeViewport> {
               window: media,
               enabled: widget.sideNavigation,
               sideTopFraction: _sideTopFraction,
-              leadingNavigation: _leadingNavigation,
               child: widget.child,
             ),
           );
@@ -129,16 +124,12 @@ class SideNavigationGeometry extends InheritedWidget {
     required this.window,
     required this.enabled,
     this.sideTopFraction,
-    this.leadingNavigation = false,
     required super.child,
   });
   final MediaQueryData window;
   final bool enabled;
   final double? sideTopFraction;
-  final bool leadingNavigation;
-  double get sideTop => leadingNavigation
-      ? window.padding.top + 8
-      : window.size.height * (sideTopFraction ?? 0.5);
+  double get sideTop => window.size.height * (sideTopFraction ?? 0.5);
 
   /// Icon-only navigation retains generous targets at every text size.
   static const itemExtent = 56.0;
@@ -150,9 +141,7 @@ class SideNavigationGeometry extends InheritedWidget {
   bool fits(int count, double itemHeight) =>
       enabled &&
       window.size.height >= 600 &&
-      (leadingNavigation ||
-          window.padding.right >= 64 ||
-          window.padding.left >= 64) &&
+      (window.padding.right >= 64 || window.padding.left >= 64) &&
       window.viewInsets.bottom == 0 &&
       count * itemHeight <=
           window.size.height - sideTop - window.padding.bottom;
@@ -161,8 +150,7 @@ class SideNavigationGeometry extends InheritedWidget {
   bool updateShouldNotify(SideNavigationGeometry oldWidget) =>
       window != oldWidget.window ||
       enabled != oldWidget.enabled ||
-      sideTopFraction != oldWidget.sideTopFraction ||
-      leadingNavigation != oldWidget.leadingNavigation;
+      sideTopFraction != oldWidget.sideTopFraction;
 }
 
 /// Paints and hit-tests controls in the side strip of the full window overlay.
@@ -193,7 +181,7 @@ class _SideNavigationPortalState extends State<SideNavigationPortal> {
   Widget build(BuildContext context) {
     final geometry = SideNavigationGeometry.of(context)!;
     final window = geometry.window;
-    final right = !geometry.leadingNavigation && window.padding.right >= 64;
+    final right = window.padding.right >= 64;
     return OverlayPortal(
       controller: _controller,
       overlayLocation: OverlayChildLocation.rootOverlay,
@@ -202,13 +190,9 @@ class _SideNavigationPortalState extends State<SideNavigationPortal> {
           : Positioned(
               right: right ? 0 : null,
               left: right ? null : 0,
-              top: widget.fillSide
-                  ? SideNavigationGeometry.of(context)!.sideTop
-                  : null,
+              top: widget.fillSide ? geometry.sideTop : null,
               bottom: window.padding.bottom,
-              width: geometry.leadingNavigation
-                  ? 72
-                  : (right ? window.padding.right : window.padding.left),
+              width: right ? window.padding.right : window.padding.left,
               child: widget.child,
             ),
       child: const SizedBox.shrink(),

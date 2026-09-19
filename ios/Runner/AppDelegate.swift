@@ -186,15 +186,7 @@ import UserNotifications
       var bottom: CGFloat = 0
       let insets = window.safeAreaInsets
       let sideWidth = max(insets.left, insets.right)
-      var hasInnerFold = false
-      #if compiler(>=6.4)
-      if #available(iOS 27.1, *) {
-        hasInnerFold = !window.reservedRegions(kind: .division, options: .includeInactive).isEmpty
-      }
-      #endif
-      let leadingNavigation = window.traitCollection.horizontalSizeClass == .regular
-        && (hasInnerFold || sideWidth >= 64)
-      guard sideWidth >= 64 || leadingNavigation, window.bounds.height > 0 else {
+      guard sideWidth >= 64, window.bounds.height > 0 else {
         result(nil)
         return
       }
@@ -214,9 +206,7 @@ import UserNotifications
       }
       #endif
       // Do not invent usable space when the system reserves the whole edge.
-      var geometry: [String: Any] = [
-        "leadingNavigation": leadingNavigation
-      ]
+      var geometry: [String: Any] = [:]
       if bottom > 0 && bottom < window.bounds.height {
         geometry["topFraction"] = Double((bottom + 8) / window.bounds.height)
       }
