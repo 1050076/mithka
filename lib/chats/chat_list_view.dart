@@ -869,6 +869,7 @@ class ChatListView extends StatefulWidget {
     super.key,
     this.controller,
     this.onChatSelected,
+    this.onSideFolderSelected,
     this.onCommunitySelected,
     this.onOpenArchived,
     this.onOpenChatInSeparateWindow,
@@ -878,6 +879,7 @@ class ChatListView extends StatefulWidget {
   });
 
   final ChatListController? controller;
+  final VoidCallback? onSideFolderSelected;
   final ValueChanged<ChatListSelection>? onChatSelected;
   final ValueChanged<CommunityListSelection>? onCommunitySelected;
   final ValueChanged<ArchivedChatListSelection>? onOpenArchived;
@@ -1768,11 +1770,13 @@ class _ChatListViewState extends State<ChatListView>
     final sideFolders =
         widget.controller != null &&
         !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.iOS &&
-        SideNavigationGeometry.of(
-              context,
-            )?.fits(tabCount, SideNavigationGeometry.itemExtent) ==
-            true;
+        (widget.desktopSidebar ||
+            (defaultTargetPlatform == TargetPlatform.iOS &&
+                SideNavigationGeometry.of(context)?.fits(
+                      tabCount,
+                      SideNavigationGeometry.itemExtent,
+                    ) ==
+                    true));
     _foldersInSideRail = sideFolders;
     final folderRail =
         sideFolders &&
@@ -2177,7 +2181,10 @@ class _ChatListViewState extends State<ChatListView>
   Widget _chatFolderRail() => ChatFolderRail(
     filters: _model.filters,
     selectedFolderId: _model.selectedFilter.folderId,
-    onSelect: _selectFilter,
+    onSelect: (filter) {
+      _selectFilter(filter);
+      widget.onSideFolderSelected?.call();
+    },
     keyForFolder: (id) => _sideFolderKeys.putIfAbsent(id, GlobalKey.new),
   );
 

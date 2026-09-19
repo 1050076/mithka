@@ -814,10 +814,11 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
         DesktopNavigationDestination(
           label: tab.label.l10n(context),
           icon: tab.icon,
+          bottom: tab.index == 2 || tab.index == 3,
         ),
     ];
     final fileLabel = AppStrings.t(AppStringKeys.topicPostContentFile);
-    final railActions = [
+    final applicationMenuPrimaryActions = [
       if (!isBotApi)
         DesktopNavigationAction(
           id: 'calls',
@@ -828,8 +829,6 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
             AppStrings.t(AppStringKeys.callsTitle),
           ),
         ),
-    ];
-    final applicationMenuQuickActions = [
       if (!isBotApi)
         DesktopNavigationAction(
           id: 'saved-messages',
@@ -927,9 +926,14 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
       // EmojiStore carries the is_premium option, which decides
       // whether the business entry is in the menu at all and
       // lands after the first frame.
-      animation: Listenable.merge([_unread, EmojiStore.shared]),
+      animation: Listenable.merge([
+        _unread,
+        EmojiStore.shared,
+        _chatListController.sideFolders,
+      ]),
       builder: (context, _) => DesktopNavigationRail(
         destinations: destinations,
+        folders: _chatListController.sideFolders.value,
         selection: selection,
         onSelect: _select,
         unread: _unread.countFor(theme.unreadBadgeMode),
@@ -953,13 +957,12 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
               : AppearanceMode.dark;
         },
         showAccountPhone: !theme.hideSidebarPhone,
-        actions: railActions,
         applicationMenuLabel: AppStrings.t(AppStringKeys.chatMenu),
         languageMenuLabel: AppStrings.t(AppStringKeys.languageMithkaLanguage),
         languageOptions: languageOptions,
         themeMenuLabel: AppStrings.t(AppStringKeys.appearanceTheme),
         themeOptions: themeOptions,
-        applicationMenuQuickActions: applicationMenuQuickActions,
+        applicationMenuPrimaryActions: applicationMenuPrimaryActions,
         applicationMenuActions: applicationMenuActions(),
       ),
     );
@@ -1281,6 +1284,7 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
           child: ChatListView(
             desktopSidebar: desktopSidebar,
             controller: _chatListController,
+            onSideFolderSelected: () => _select(0),
             selectedChatId: _selectedMessageChat?.chatId,
             selectedCommunityId: communitiesEnabled
                 ? _selectedMessageCommunity?.community.id

@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mithka/app/adaptive_split_layout.dart';
 import 'package:mithka/app/desktop_navigation_rail.dart';
 import 'package:mithka/auth/account_store.dart';
+import 'package:mithka/chats/chat_list_view.dart';
+import 'package:mithka/chats/chat_list_view_model.dart';
 import 'package:mithka/components/app_icons.dart';
 import 'package:mithka/theme/app_theme.dart';
 import 'package:mithka/theme/theme_controller.dart';
@@ -11,12 +13,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets(
-    'desktop rail keeps a fixed width and exposes every destination',
+    'desktop folders scroll while lower destinations stay above account switcher',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final theme = ThemeController(await SharedPreferences.getInstance());
       addTearDown(theme.dispose);
       var selection = -1;
+      int? folderSelection;
       await tester.pumpWidget(
         ChangeNotifierProvider<ThemeController>.value(
           value: theme,
@@ -35,8 +38,23 @@ void main() {
                     DesktopNavigationDestination(
                       label: 'Contacts',
                       icon: HeroAppIcons.users,
+                      bottom: true,
+                    ),
+                    DesktopNavigationDestination(
+                      label: 'Moments',
+                      icon: HeroAppIcons.arrowsRotate,
+                      bottom: true,
                     ),
                   ],
+                  folders: ChatFolderRail(
+                    filters: [
+                      for (var i = 0; i < 20; i++)
+                        ChatFilterOption(title: 'Folder $i', folderId: i),
+                    ],
+                    selectedFolderId: null,
+                    onSelect: (folder) => folderSelection = folder.folderId,
+                  ),
+                  onSelectAccount: (_) {},
                   selection: 0,
                   unread: 4,
                   onClearUnread: () {},
@@ -57,6 +75,26 @@ void main() {
       expect(find.bySemanticsLabel('Messages'), findsOneWidget);
       expect(find.bySemanticsLabel('Contacts'), findsOneWidget);
 
+      final contacts = find.byKey(const ValueKey('desktop-navigation-item-1'));
+      final moments = find.byKey(const ValueKey('desktop-navigation-item-2'));
+      final account = find.byKey(const ValueKey('desktop-account-switcher'));
+      final contactsRect = tester.getRect(contacts);
+      expect(
+        contactsRect.bottom,
+        lessThanOrEqualTo(tester.getRect(moments).top),
+      );
+      expect(
+        tester.getRect(moments).bottom,
+        lessThanOrEqualTo(tester.getRect(account).top),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('side-folder-15')),
+        120,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('side-folder-15')));
+      expect(folderSelection, 15);
+      expect(tester.getRect(contacts), contactsRect);
       await tester.tap(find.bySemanticsLabel('Contacts'));
       expect(selection, 1);
     },
@@ -115,15 +153,13 @@ void main() {
                   themeToggleLabel: 'Toggle appearance',
                   darkMode: true,
                   onToggleThemeMode: () => themeToggled = true,
-                  actions: [
+                  applicationMenuPrimaryActions: [
                     DesktopNavigationAction(
                       id: 'calls',
                       label: 'Calls',
                       icon: HeroAppIcons.phone,
                       onTap: () => callsOpened = true,
                     ),
-                  ],
-                  applicationMenuQuickActions: [
                     DesktopNavigationAction(
                       id: 'saved-messages',
                       label: 'Saved Messages',
@@ -214,9 +250,18 @@ void main() {
         findsNothing,
       );
 
-      await tester.tap(
+      expect(
         find.byKey(const ValueKey('desktop-navigation-action-calls')),
+        findsNothing,
       );
+      await tester.tap(
+        find.byKey(const ValueKey('desktop-application-menu-button')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('desktop-application-action-calls')),
+      );
+      await tester.pump();
       expect(callsOpened, isTrue);
       expect(
         find.byKey(const ValueKey('desktop-navigation-action-settings')),
@@ -231,13 +276,25 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('desktop-application-quick-saved-messages')),
+        find.byKey(const ValueKey('desktop-application-action-saved-messages')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('desktop-application-quick-files')),
+        find.byKey(const ValueKey('desktop-application-action-files')),
         findsOneWidget,
       );
+      final rows = ['calls', 'saved-messages', 'files', 'appearance']
+          .map(
+            (id) => tester.getRect(
+              find.byKey(ValueKey('desktop-application-action-$id')),
+            ),
+          )
+          .toList();
+      for (var i = 1; i < rows.length; i++) {
+        expect(rows[i].left, rows.first.left);
+        expect(rows[i].width, rows.first.width);
+        expect(rows[i].top, greaterThanOrEqualTo(rows[i - 1].bottom));
+      }
       expect(
         find.byKey(const ValueKey('desktop-application-language')),
         findsOneWidget,
@@ -275,11 +332,11 @@ void main() {
       );
       await tester.pump();
       expect(
-        find.byKey(const ValueKey('desktop-application-quick-appearance')),
+        find.byKey(const ValueKey('desktop-application-action-appearance')),
         findsOneWidget,
       );
       await tester.tap(
-        find.byKey(const ValueKey('desktop-application-quick-appearance')),
+        find.byKey(const ValueKey('desktop-application-action-appearance')),
       );
       await tester.pump();
       expect(themeSelectorOpened, isTrue);
