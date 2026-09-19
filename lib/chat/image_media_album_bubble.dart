@@ -732,14 +732,14 @@ class ImageMediaAlbumBubble extends StatelessWidget {
                   ignoring: selecting,
                   child: MessageMediaSpoiler(
                     message: message,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
                         imageBuilder?.call(context, message, width, height) ??
                             TDImage(
                               photo: message.image,
-                              cornerRadius: 5,
+                              cornerRadius: AppRadius.sm,
                               cacheWidth: _cachePx(context, width),
                               cacheHeight: _cachePx(context, height),
                               showProgress: true,

@@ -4411,7 +4411,7 @@ class _PostMusicCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.card,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.card),
           border: Border.all(color: colors.divider, width: 0.5),
         ),
         child: Row(
@@ -4468,7 +4468,9 @@ class _PostMusicCard extends StatelessWidget {
                               color: music.cover == null
                                   ? AppTheme.brand
                                   : Colors.black.withValues(alpha: 0.45),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.control,
+                              ),
                             ),
                             child: Center(
                               child: loading
