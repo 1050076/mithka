@@ -57,6 +57,7 @@ import 'chat_delete_policy.dart';
 import 'chat_folder_tag_controller.dart';
 import 'chat_list_preview.dart';
 import 'chat_list_view_model.dart';
+import 'chat_removal_actions.dart';
 import 'chat_row_view.dart';
 import 'filtered_chats_view.dart';
 import 'qr_scanner_view.dart';
@@ -2852,7 +2853,13 @@ class _ChatListViewState extends State<ChatListView>
       }
     } catch (error) {
       if (!mounted) return;
-      final message = error is TdError ? error.message : error.toString();
+      final message = switch (error) {
+        ChatRemovalUnavailable() => AppStringKeys.chatDeleteUnavailable,
+        ChatLeaveHistoryCleanupFailed() =>
+          AppStringKeys.chatLeaveHistoryCleanupFailed,
+        TdError() => error.message,
+        _ => error.toString(),
+      };
       showToast(
         context,
         message.trim().isEmpty ? AppStringKeys.chatDelete : message,

@@ -961,7 +961,8 @@
     <string name="chatJoinGroup">加入群聊</string>
     <string name="chatJoinRequestPending">已申请加入，等待审核</string>
     <string name="chatJoinRequestSent">已申请加入</string>
-    <string name="chatLeaveAndDeleteDescription">退出“{value1}”，并在所有设备上删除你的 Telegram 账户中的聊天记录。</string>
+    <string name="chatLeaveAndDeleteDescription">退出“{value1}”，并将其从你的聊天列表中移除。不会为其他成员删除消息。</string>
+    <string name="chatLeaveHistoryCleanupFailed">已退出群聊，但未能清空聊天记录。</string>
     <string name="chatListAddFriendOrGroup">加好友/群</string>
     <string name="chatListBlockedPlaceholder">[已屏蔽]</string>
     <string name="chatListChannelName">频道名称</string>

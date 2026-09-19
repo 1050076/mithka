@@ -856,6 +856,7 @@ abstract final class AppStringKeys {
   static const chatJoinRequestPending = 'chatJoinRequestPending';
   static const chatJoinRequestSent = 'chatJoinRequestSent';
   static const chatLeaveAndDeleteDescription = 'chatLeaveAndDeleteDescription';
+  static const chatLeaveHistoryCleanupFailed = 'chatLeaveHistoryCleanupFailed';
   static const chatListAddFriendOrGroup = 'chatListAddFriendOrGroup';
   static const chatListBlockedPlaceholder = 'chatListBlockedPlaceholder';
   static const chatListChannelName = 'chatListChannelName';

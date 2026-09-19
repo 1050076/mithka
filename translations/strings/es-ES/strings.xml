@@ -962,7 +962,8 @@
     <string name="chatJoinGroup">Unirse al grupo</string>
     <string name="chatJoinRequestPending">Solicitud enviada, pendiente de aprobación</string>
     <string name="chatJoinRequestSent">Solicitud enviada</string>
-    <string name="chatLeaveAndDeleteDescription">Salir de «{value1}» y eliminar su historial de tu cuenta de Telegram en todos tus dispositivos.</string>
+    <string name="chatLeaveAndDeleteDescription">Salir de «{value1}» y quitarlo de tu lista de chats. No se eliminarán los mensajes para otros miembros.</string>
+    <string name="chatLeaveHistoryCleanupFailed">Has salido del grupo, pero no se pudo borrar su historial de chat.</string>
     <string name="chatListAddFriendOrGroup">Añadir amigo/grupo</string>
     <string name="chatListBlockedPlaceholder">[Bloqueado]</string>
     <string name="chatListChannelName">Nombre del canal</string>

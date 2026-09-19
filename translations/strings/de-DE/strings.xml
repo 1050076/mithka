@@ -962,7 +962,8 @@
     <string name="chatJoinGroup">Gruppe beitreten</string>
     <string name="chatJoinRequestPending">Beitritt beantragt, wartet auf Prüfung</string>
     <string name="chatJoinRequestSent">Beitritt beantragt</string>
-    <string name="chatLeaveAndDeleteDescription">„{value1}“ verlassen und den Verlauf aus deinem Telegram-Konto auf allen Geräten entfernen.</string>
+    <string name="chatLeaveAndDeleteDescription">„{value1}“ verlassen und aus deiner Chatliste entfernen. Nachrichten werden nicht für andere Mitglieder gelöscht.</string>
+    <string name="chatLeaveHistoryCleanupFailed">Du hast die Gruppe verlassen, aber der Chatverlauf konnte nicht gelöscht werden.</string>
     <string name="chatListAddFriendOrGroup">Freund/Gruppe hinzufügen</string>
     <string name="chatListBlockedPlaceholder">[Blockiert]</string>
     <string name="chatListChannelName">Kanalname</string>

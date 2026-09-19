@@ -24,6 +24,7 @@ import '../tdlib/td_client.dart';
 import '../tdlib/td_models.dart';
 import '../tdlib/td_user_index.dart';
 import 'chat_delete_policy.dart';
+import 'chat_removal_actions.dart';
 
 class ChatFilterOption {
   const ChatFilterOption({required this.title, this.folderId});
@@ -719,9 +720,9 @@ class ChatListViewModel extends ChangeNotifier {
   Future<ChatDeleteCapabilities> deleteCapabilities(ChatSummary chat) async {
     try {
       final raw = await _client.query({'@type': 'getChat', 'chat_id': chat.id});
-      return chatDeleteCapabilities(raw);
+      return chatListDeleteCapabilities(raw);
     } catch (_) {
-      return const ChatDeleteCapabilities.selfOnly();
+      return const ChatDeleteCapabilities.none();
     }
   }
 
@@ -745,14 +746,16 @@ class ChatListViewModel extends ChangeNotifier {
   }) async {
     final leavesChat = shouldLeaveBeforeDeletingChat(chat.kind, scope);
     if (leavesChat) {
-      await _client.query({'@type': 'leaveChat', 'chat_id': chat.id});
+      await leaveChatAndRemoveFromList(
+        chatId: chat.id,
+        query: _client.query,
+        onLeft: () => _client.emitLocalUpdate(chatLeftLocalUpdate(chat.id)),
+      );
+      return;
     }
     await _client.query(
       deleteChatHistoryRequest(chatId: chat.id, scope: scope),
     );
-    if (leavesChat) {
-      _client.emitLocalUpdate(chatLeftLocalUpdate(chat.id));
-    }
   }
 
   Future<void> clearSavedMessages(ChatSummary chat) async {

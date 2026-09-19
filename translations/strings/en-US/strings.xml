@@ -962,7 +962,8 @@
     <string name="chatJoinGroup">Join group</string>
     <string name="chatJoinRequestPending">Join request sent, pending approval</string>
     <string name="chatJoinRequestSent">Join request sent</string>
-    <string name="chatLeaveAndDeleteDescription">Leave “{value1}” and remove its history from your Telegram account on all devices.</string>
+    <string name="chatLeaveAndDeleteDescription">Leave “{value1}” and remove it from your chat list. This will not delete messages for other members.</string>
+    <string name="chatLeaveHistoryCleanupFailed">You left the group, but its chat history could not be cleared.</string>
     <string name="chatListAddFriendOrGroup">Add friend/group</string>
     <string name="chatListBlockedPlaceholder">[Blocked]</string>
     <string name="chatListChannelName">Channel name</string>
