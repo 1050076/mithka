@@ -619,7 +619,9 @@ class _SharedMediaViewState extends State<SharedMediaView> {
 
   bool _usesWideMediaPresentation(BuildContext context) {
     if (!_tabs[_tab].videoOnly && !_tabs[_tab].musicOnly) return false;
-    return usesSplitSelectionLayout(MediaQuery.sizeOf(context));
+    final size = MediaQuery.sizeOf(context);
+    return usesDesktopShellLayout(size) ||
+        (size.width > size.height && usesSplitSelectionLayout(size));
   }
 
   bool _hidesInnerHeader(BuildContext context) {

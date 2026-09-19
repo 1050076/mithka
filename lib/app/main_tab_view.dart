@@ -62,6 +62,7 @@ import 'desktop_chat_window.dart';
 import 'desktop_navigation_rail.dart';
 import 'desktop_utility_window.dart';
 import 'detail_content_reveal.dart';
+import 'horizontal_safe_viewport.dart';
 import 'liquid_glass_bottom_bar.dart';
 import 'native_bottom_tab_bar.dart';
 import 'primary_chat_launcher.dart';
@@ -2127,6 +2128,94 @@ class _MainBottomBar extends StatelessWidget {
     // by what the labels underneath them gain from the text scale.
     final theme = context.watch<ThemeController>();
     final glass = theme.liquidGlassBottomBar;
+    final sideGeometry = SideNavigationGeometry.of(context);
+    final sideItemHeight =
+        64.0 +
+        math.max(
+          0.0,
+          (MediaQuery.textScalerOf(context).scale(_labelSize) - _labelSize) *
+              _labelLineHeight,
+        );
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        sideGeometry?.fits(items.length, sideItemHeight) == true) {
+      return SideNavigationPortal(
+        visible:
+            (ModalRoute.isCurrentOf(context) ?? true) &&
+            !context.watch<dc.DrawerController>().isOpen,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Column(
+            key: const ValueKey('side-tab-bar'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < items.length; i++)
+                AppInteractiveSurface(
+                  key: ValueKey('side-tab-${items[i].index}'),
+                  semanticLabel: items[i].label.l10n(context),
+                  selected: selection == i,
+                  borderRadius: BorderRadius.circular(AppRadius.control),
+                  onTap: () => onSelect(i),
+                  child: Container(
+                    height: sideItemHeight,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: selection == i
+                          ? c.linkBlue.withValues(alpha: 0.10)
+                          : null,
+                      borderRadius: BorderRadius.circular(AppRadius.control),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 32,
+                          height: 28,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.center,
+                            children: [
+                              AppIcon(
+                                items[i].icon,
+                                size: 24,
+                                color: selection == i
+                                    ? c.linkBlue
+                                    : c.textTertiary,
+                              ),
+                              if (i == 0 && unread > 0)
+                                Positioned(
+                                  right: -12,
+                                  top: -4,
+                                  child: UnreadBadge(
+                                    count: unread,
+                                    onClear: onClearUnread,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          items[i].label.l10n(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: _labelSize,
+                            fontWeight: selection == i
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: selection == i ? c.linkBlue : c.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     if (glass && !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       return NativeBottomTabBar(
         items: [
