@@ -52,6 +52,15 @@ void main() {
       final contactsTab = find.byKey(const ValueKey('side-tab-2'));
       expect(tester.getRect(contactsTab).left, greaterThanOrEqualTo(382));
       expect(find.byKey(const ValueKey('classic-bottom-bar')), findsNothing);
+      for (final label in ['Messages', 'Contacts', 'Moments']) {
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('side-tab-bar')),
+            matching: find.text(label),
+          ),
+          findsNothing,
+        );
+      }
       await tester.tap(contactsTab);
       await tester.pump();
       final contacts = tester.element(find.byType(ContactsView));

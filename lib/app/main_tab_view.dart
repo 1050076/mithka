@@ -700,6 +700,7 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
             ? AnimatedBuilder(
                 animation: _unread,
                 builder: (context, _) => _MainBottomBar(
+                  chatListController: _chatListController,
                   selection: selection,
                   onSelect: _select,
                   items: tabs,
@@ -1171,6 +1172,7 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
                             footer: AnimatedBuilder(
                               animation: _unread,
                               builder: (context, _) => _MainBottomBar(
+                                chatListController: _chatListController,
                                 selection: selection,
                                 onSelect: _select,
                                 items: tabs,
@@ -2107,12 +2109,14 @@ class _MainBottomBar extends StatelessWidget {
     required this.onClearUnread,
     required this.items,
     required this.unread,
+    this.chatListController,
   });
   final int selection;
   final ValueChanged<int> onSelect;
   final VoidCallback onClearUnread;
   final List<_MainTabItem> items;
   final int unread;
+  final ChatListController? chatListController;
 
   /// Label size the bar is laid out around. The icon block above it keeps its
   /// size at every text scale, so only this line's growth is added to the bar.
@@ -2129,17 +2133,12 @@ class _MainBottomBar extends StatelessWidget {
     final theme = context.watch<ThemeController>();
     final glass = theme.liquidGlassBottomBar;
     final sideGeometry = SideNavigationGeometry.of(context);
-    final sideItemHeight =
-        64.0 +
-        math.max(
-          0.0,
-          (MediaQuery.textScalerOf(context).scale(_labelSize) - _labelSize) *
-              _labelLineHeight,
-        );
+    const sideItemHeight = SideNavigationGeometry.itemExtent;
     if (!kIsWeb &&
         defaultTargetPlatform == TargetPlatform.iOS &&
         sideGeometry?.fits(items.length, sideItemHeight) == true) {
       return SideNavigationPortal(
+        fillSide: true,
         visible:
             (ModalRoute.isCurrentOf(context) ?? true) &&
             !context.watch<dc.DrawerController>().isOpen,
@@ -2149,6 +2148,17 @@ class _MainBottomBar extends StatelessWidget {
             key: const ValueKey('side-tab-bar'),
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (chatListController != null && items[selection].index == 0)
+                Expanded(
+                  child: ValueListenableBuilder<Widget?>(
+                    valueListenable: chatListController!.sideFolders,
+                    builder: (_, folders, _) =>
+                        folders ?? const SizedBox.shrink(),
+                  ),
+                )
+              else
+                const Spacer(),
+              const SizedBox(height: 12),
               for (var i = 0; i < items.length; i++)
                 AppInteractiveSurface(
                   key: ValueKey('side-tab-${items[i].index}'),
@@ -2192,19 +2202,6 @@ class _MainBottomBar extends StatelessWidget {
                                   ),
                                 ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          items[i].label.l10n(context),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: _labelSize,
-                            fontWeight: selection == i
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: selection == i ? c.linkBlue : c.textTertiary,
                           ),
                         ),
                       ],

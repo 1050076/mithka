@@ -1,11 +1,85 @@
 import 'dart:ui' show DisplayFeature, DisplayFeatureState, DisplayFeatureType;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mithka/app/adaptive_split_layout.dart';
 import 'package:mithka/app/horizontal_safe_viewport.dart';
 
 void main() {
+  testWidgets(
+    'native inner-display geometry moves the rail left without remounting content',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      const channel = MethodChannel('mithka/window_geometry');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (_) async => {
+          'topFraction': 0.25,
+          'leadingNavigation': tester.view.physicalSize.width > 700,
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(466, 678);
+      tester.view.padding = const FakeViewPadding(right: 84, bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(right: 84, bottom: 34);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetViewPadding);
+      const contentKey = ValueKey('retained-native-content');
+      const railKey = ValueKey('native-positioned-rail');
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery.fromView(
+            view: tester.view,
+            child: const HorizontalSafeViewport(
+              sideNavigation: true,
+              child: Stack(
+                key: contentKey,
+                children: [
+                  SideNavigationPortal(
+                    visible: true,
+                    fillSide: true,
+                    child: SizedBox.expand(key: railKey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final element = tester.element(find.byKey(contentKey));
+      expect(
+        tester.getRect(find.byKey(railKey)),
+        const Rect.fromLTWH(382, 169.5, 84, 474.5),
+      );
+      tester.view.physicalSize = const Size(951, 669);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(railKey)),
+        const Rect.fromLTWH(0, 8, 72, 627),
+      );
+      expect(
+        tester.getRect(find.byKey(contentKey)),
+        const Rect.fromLTWH(72, 0, 795, 669),
+      );
+      expect(tester.element(find.byKey(contentKey)), same(element));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
   testWidgets('side controls remain below a full-window blocking overlay', (
     tester,
   ) async {
