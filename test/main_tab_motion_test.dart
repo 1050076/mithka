@@ -26,6 +26,7 @@ import 'package:mithka/l10n/app_localizations.dart';
 import 'package:mithka/profile/profile_view.dart';
 import 'package:mithka/settings/desktop_hotkey_controller.dart';
 import 'package:mithka/settings/translation_controller.dart';
+import 'package:mithka/tdlib/td_client.dart';
 import 'package:mithka/tdlib/td_models.dart';
 import 'package:mithka/theme/app_theme.dart';
 import 'package:mithka/theme/theme_controller.dart';
@@ -33,6 +34,65 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets('folder slides never reset to All or toggle the Messages tab', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await _setSurfaceSize(tester, const Size(1100, 720));
+      await _pumpMainShell(tester);
+      TdClient.shared.emitLocalUpdate({
+        '@type': 'updateChatFolders',
+        'chat_folders': [
+          {
+            'id': 1,
+            'title': 'Work',
+            'icon': {'name': 'Work'},
+          },
+          {
+            'id': 2,
+            'title': 'Home',
+            'icon': {'name': 'Home'},
+          },
+        ],
+      });
+      await tester.pump();
+      await tester.pump();
+      final controller = tester
+          .widget<ChatListView>(find.byType(ChatListView))
+          .controller!;
+      final toggles = controller.toggleFirstUnreadRequests;
+      await tester.tap(find.byKey(const ValueKey('side-folder-1')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChatFolderRail>(find.byType(ChatFolderRail))
+            .selectedFolderId,
+        1,
+      );
+      await tester.tap(find.byKey(const ValueKey('side-folder-2')));
+      for (var frame = 0; frame < 24; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(
+          tester
+              .widget<ChatFolderRail>(find.byType(ChatFolderRail))
+              .selectedFolderId,
+          isNotNull,
+        );
+      }
+      expect(controller.toggleFirstUnreadRequests, toggles);
+      expect(
+        tester
+            .widget<ChatFolderRail>(find.byType(ChatFolderRail))
+            .selectedFolderId,
+        2,
+      );
+      await _disposeShell(tester);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets(
     'Duo side tabs use the strip and yield to routes and the drawer',
     (tester) async {

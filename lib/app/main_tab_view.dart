@@ -1270,7 +1270,6 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
           child: ChatListView(
             desktopSidebar: desktopSidebar,
             controller: _chatListController,
-            onSideFolderSelected: () => _select(0),
             selectedChatId: _selectedMessageChat?.chatId,
             selectedCommunityId: communitiesEnabled
                 ? _selectedMessageCommunity?.community.id

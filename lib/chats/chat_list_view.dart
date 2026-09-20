@@ -37,6 +37,7 @@ import '../components/app_icons.dart';
 import '../components/app_interactive_surface.dart';
 import '../components/app_press_ripple.dart';
 import '../components/chat_folder_icons.dart';
+import '../components/desktop_row_actions.dart';
 import '../components/drawer_controller.dart' as dc;
 import '../components/photo_avatar.dart';
 import '../components/toast.dart';
@@ -45,6 +46,8 @@ import '../contacts/add_people_view.dart';
 import '../contacts/create_group_view.dart';
 import '../profile/emoji_status_picker.dart';
 import '../security/local_app_lock_controller.dart';
+import '../settings/chat_folder_management_view.dart';
+import '../settings/chat_folder_service.dart';
 import '../settings/edit_field_view.dart';
 import '../settings/topic_group_display_mode.dart';
 import '../tdlib/json_helpers.dart';
@@ -138,11 +141,13 @@ class ChatFolderRail extends StatelessWidget {
     required this.selectedFolderId,
     required this.onSelect,
     this.keyForFolder,
+    this.onEdit,
   });
   final List<ChatFilterOption> filters;
   final int? selectedFolderId;
   final ValueChanged<ChatFilterOption> onSelect;
   final Key? Function(int? folderId)? keyForFolder;
+  final ValueChanged<ChatFilterOption>? onEdit;
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -151,49 +156,61 @@ class ChatFolderRail extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       children: [
         for (final filter in filters)
-          AppInteractiveSurface(
-            key: keyForFolder?.call(filter.folderId),
-            semanticLabel: filter.title.l10n(context),
-            selected: filter.folderId == selectedFolderId,
-            borderRadius: BorderRadius.circular(AppRadius.control),
-            onTap: () => onSelect(filter),
-            child: Container(
-              key: ValueKey('side-folder-${filter.folderId ?? 'all'}'),
-              constraints: const BoxConstraints(minHeight: 56),
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppRadius.control),
-                color: filter.folderId == selectedFolderId
-                    ? c.linkBlue.withValues(alpha: 0.10)
-                    : null,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ChatFolderIcon(
-                    filter.isAll ? 'All' : filter.iconName,
-                    size: 22,
-                    color: filter.folderId == selectedFolderId
-                        ? c.linkBlue
-                        : c.textSecondary,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    filter.title.l10n(context),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: filter.folderId == selectedFolderId
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+          DesktopRowActionRegion(
+            actions: filter.isAll || onEdit == null
+                ? const []
+                : [
+                    DesktopRowAction(
+                      id: 'edit-folder',
+                      label: AppStringKeys.chatFolderManagementEditFolder,
+                      icon: HeroAppIcons.pen,
+                      onInvoke: () => onEdit!(filter),
+                    ),
+                  ],
+            child: AppInteractiveSurface(
+              key: keyForFolder?.call(filter.folderId),
+              semanticLabel: filter.title.l10n(context),
+              selected: filter.folderId == selectedFolderId,
+              borderRadius: BorderRadius.circular(AppRadius.control),
+              onTap: () => onSelect(filter),
+              child: Container(
+                key: ValueKey('side-folder-${filter.folderId ?? 'all'}'),
+                constraints: const BoxConstraints(minHeight: 56),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.control),
+                  color: filter.folderId == selectedFolderId
+                      ? c.linkBlue.withValues(alpha: 0.10)
+                      : null,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ChatFolderIcon(
+                      filter.isAll ? 'All' : filter.iconName,
+                      size: 22,
                       color: filter.folderId == selectedFolderId
                           ? c.linkBlue
                           : c.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      filter.title.l10n(context),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: filter.folderId == selectedFolderId
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: filter.folderId == selectedFolderId
+                            ? c.linkBlue
+                            : c.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -870,7 +887,6 @@ class ChatListView extends StatefulWidget {
     super.key,
     this.controller,
     this.onChatSelected,
-    this.onSideFolderSelected,
     this.onCommunitySelected,
     this.onOpenArchived,
     this.onOpenChatInSeparateWindow,
@@ -880,7 +896,6 @@ class ChatListView extends StatefulWidget {
   });
 
   final ChatListController? controller;
-  final VoidCallback? onSideFolderSelected;
   final ValueChanged<ChatListSelection>? onChatSelected;
   final ValueChanged<CommunityListSelection>? onCommunitySelected;
   final ValueChanged<ArchivedChatListSelection>? onOpenArchived;
@@ -1432,6 +1447,51 @@ class _ChatListViewState extends State<ChatListView>
     await openLink(context, value);
   }
 
+  Future<void> _editFolderAppearance(ChatFilterOption filter) async {
+    final id = filter.folderId;
+    if (id == null) return;
+    final client = TdClient.shared;
+    final clientId = client.activeClientId;
+    final service = ChatFolderService(
+      query: (request) => client.queryTo(request, clientId),
+    );
+    try {
+      final raw = await service.getFolder(id);
+      if (!mounted || client.activeClientId != clientId) return;
+      final original = ChatFolderDraft.fromRaw(raw);
+      final edited = await Navigator.of(context, rootNavigator: true)
+          .push<ChatFolderDraft>(
+            AppPageRoute(
+              pageBuilder: (_, _, _) => ChatFolderEditorView(
+                initial: original,
+                folderId: id,
+                service: service,
+                tagsEnabled: false,
+                appearanceOnly: true,
+              ),
+            ),
+          );
+      if (edited == null || !mounted || client.activeClientId != clientId) {
+        return;
+      }
+      await service.editAppearance(
+        id,
+        title: edited.title == original.title ? null : edited.title,
+        iconName: edited.iconName == original.iconName ? null : edited.iconName,
+      );
+    } catch (error) {
+      if (mounted) {
+        showToast(
+          context,
+          AppStrings.t(
+            AppStringKeys.chatFolderManagementCouldnTUpdateFolderValue1,
+            {'value1': error},
+          ),
+        );
+      }
+    }
+  }
+
   void _selectFilter(ChatFilterOption filter) {
     if (!mounted) return;
     setState(() => _showFilterMenu = false);
@@ -1773,10 +1833,9 @@ class _ChatListViewState extends State<ChatListView>
         !kIsWeb &&
         (widget.desktopSidebar ||
             (defaultTargetPlatform == TargetPlatform.iOS &&
-                SideNavigationGeometry.of(context)?.fits(
-                      tabCount,
-                      SideNavigationGeometry.itemExtent,
-                    ) ==
+                SideNavigationGeometry.of(
+                      context,
+                    )?.fits(tabCount, SideNavigationGeometry.itemExtent) ==
                     true));
     _foldersInSideRail = sideFolders;
     final folderRail =
@@ -2182,10 +2241,8 @@ class _ChatListViewState extends State<ChatListView>
   Widget _chatFolderRail() => ChatFolderRail(
     filters: _model.filters,
     selectedFolderId: _model.selectedFilter.folderId,
-    onSelect: (filter) {
-      _selectFilter(filter);
-      widget.onSideFolderSelected?.call();
-    },
+    onSelect: _selectFilter,
+    onEdit: _editFolderAppearance,
     keyForFolder: (id) => _sideFolderKeys.putIfAbsent(id, GlobalKey.new),
   );
 

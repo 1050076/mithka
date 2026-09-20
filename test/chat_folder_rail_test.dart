@@ -1,4 +1,6 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mithka/chats/chat_list_view.dart';
 import 'package:mithka/chats/chat_list_view_model.dart';
@@ -6,6 +8,51 @@ import 'package:mithka/components/app_icons.dart';
 import 'package:mithka/components/chat_folder_icons.dart';
 
 void main() {
+  testWidgets('right click edits only custom folders without selecting them', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    int? edited;
+    var selections = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 72,
+            height: 300,
+            child: ChatFolderRail(
+              filters: const [
+                ChatFilterOption(title: 'All'),
+                ChatFilterOption(title: 'Work', folderId: 7),
+              ],
+              selectedFolderId: null,
+              onSelect: (_) => selections++,
+              onEdit: (folder) => edited = folder.folderId,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('side-folder-all')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pump();
+    expect(find.text('Edit folder'), findsNothing);
+    await tester.tap(
+      find.byKey(const ValueKey('side-folder-7')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit folder'));
+    await tester.pumpAndSettle();
+    expect(edited, 7);
+    expect(selections, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   test('folder icons map configured names and safely fall back', () {
     expect(chatFolderIcon('Work'), HeroAppIcons.briefcase);
     expect(chatFolderIcon('Private'), HeroAppIcons.circleUser);

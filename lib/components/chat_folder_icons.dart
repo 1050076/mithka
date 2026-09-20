@@ -4,6 +4,39 @@ import 'package:flutter/widgets.dart';
 
 import 'app_icons.dart';
 
+const chatFolderIconNames = [
+  'Custom',
+  'All',
+  'Unread',
+  'Unmuted',
+  'Bots',
+  'Channels',
+  'Groups',
+  'Private',
+  'Setup',
+  'Cat',
+  'Crown',
+  'Favorite',
+  'Flower',
+  'Game',
+  'Home',
+  'Love',
+  'Mask',
+  'Party',
+  'Sport',
+  'Study',
+  'Trade',
+  'Travel',
+  'Work',
+  'Airplane',
+  'Book',
+  'Light',
+  'Like',
+  'Money',
+  'Note',
+  'Palette',
+];
+
 /// TDLib folder icon names rendered with the app's owned icon vocabulary.
 AppIconData chatFolderIcon(String name) => switch (name) {
   'All' => HeroAppIcons.inbox,
