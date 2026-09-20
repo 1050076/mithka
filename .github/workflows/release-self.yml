@@ -27,6 +27,12 @@ jobs:
     name: Build Windows x64
     runs-on: windows-2022
     timeout-minutes: 150
+    env:
+      # Same MDK/FFmpeg mirror as windows-build.yml: fvp's cmake honours these
+      # two variables, so the pinned sha256 is kept but the archive comes from
+      # this fork's own release instead of the upstream author's.
+      FVP_DEPS_URL: https://github.com/1050076/mithka-tdjson/releases/download/fvp-mdk-2026-08-14
+      FVP_DEPS_SHA256: c541fa13dd12e17414eb05e6a176f3fb40a93cc5c38aaf85dbce1cd68d2828f0
 
     steps:
       - uses: actions/checkout@v7
@@ -52,6 +58,10 @@ jobs:
 
       - name: Resolve Flutter dependencies
         run: flutter pub get
+
+      - name: Verify git dependency revisions
+        shell: bash
+        run: bash scripts/check-git-dep-revisions.sh
 
       - name: Write credential-free secrets.dart
         shell: bash

@@ -7,8 +7,10 @@ name: iOS Sideload IPA
 on:
   workflow_dispatch:
   push:
+    # Master pushes no longer auto-build iOS: one 45-minute iOS build per
+    # unrelated commit is waste. Trigger from the Actions page, or push a
+    # sideload** branch. (windows-build.yml follows the same rule.)
     branches:
-      - master
       - 'sideload**'
 permissions:
   contents: read
@@ -98,6 +100,9 @@ jobs:
             base64 < "$placeholder" | tr -d '\n'
           )"
           sh ci_scripts/ci_post_clone.sh
+
+      - name: Verify git dependency revisions
+        run: bash scripts/check-git-dep-revisions.sh
 
       - name: Archive iOS app (unsigned, ad-hoc codesign)
         run: |
