@@ -1,0 +1,8 @@
+# Upstream TDLib source pin used by scripts/build-tdjson-from-source.sh.
+# Verified against tdlib/td: commit d1085f9cebc5a62379991ae1652673954f229c1f
+# ("Fix spelling mistakes in updateFileGenerationStart documentation."),
+# the exact commit the official mithka-tdjson 1.8.67 artifacts were built from
+# (see scripts/tdjson-manifest.json upstream_sha).
+repository: https://github.com/tdlib/td.git
+commit: d1085f9cebc5a62379991ae1652673954f229c1f
+tdlib_version: 1.8.67
