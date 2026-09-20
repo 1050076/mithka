@@ -105,12 +105,12 @@ case "$PLATFORM" in
     built_library="$(find "$TD_BUILD" -type f -name 'libtdjson*.dylib' -print -quit)"
     ;;
   windows)
-    if [[ -n "${VCPKG_INSTALLATION_ROOT:-}" && -f "${VCPKG_ZLIB_LIBRARY:-}" ]]; then
+    if [[ -n "${VCPKG_INSTALLATION_ROOT:-}" ]]; then
       vcpkg_toolchain="$(cygpath -m "$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake")"
       cmake -S "$TD_SOURCE" -B "$TD_BUILD" \
         -G 'Visual Studio 17 2022' -A x64 \
         -DCMAKE_TOOLCHAIN_FILE="$vcpkg_toolchain" \
-        -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-x64-windows-static-md}" \
+        -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-x64-windows-static}" \
         -DTD_ENABLE_LTO=OFF
     else
       cmake -S "$TD_SOURCE" -B "$TD_BUILD" \

@@ -42,12 +42,9 @@ jobs:
         shell: pwsh
         run: |
           choco install -y gperf
-          $zlib = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static-md\lib\zlib.lib"
-          if (-not (Test-Path $zlib)) {
-            & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib:x64-windows-static-md
-          }
-          if (-not (Test-Path $zlib)) { throw "zlib not installed at $zlib" }
-          "VCPKG_ZLIB_LIBRARY=$zlib" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib:x64-windows-static openssl:x64-windows-static
+          $zlib = & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" list zlib:x64-windows-static
+          if (-not $zlib) { throw "zlib:x64-windows-static not installed" }
 
       - name: Build tdjson from verified source
         shell: bash
