@@ -40,7 +40,14 @@ jobs:
 
       - name: Install tdjson build dependencies
         shell: pwsh
-        run: choco install -y gperf
+        run: |
+          choco install -y gperf
+          $zlib = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static-md\lib\zlib.lib"
+          if (-not (Test-Path $zlib)) {
+            & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib:x64-windows-static-md
+          }
+          if (-not (Test-Path $zlib)) { throw "zlib not installed at $zlib" }
+          "VCPKG_ZLIB_LIBRARY=$zlib" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build tdjson from verified source
         shell: bash
