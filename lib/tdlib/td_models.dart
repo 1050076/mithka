@@ -695,6 +695,7 @@ class ChatMessage {
     this.video,
     this.videoDuration,
     this.videoFileSize,
+    this.hasSpoiler = false,
     this.videoNoteTranscription = '',
     this.videoNoteTranscriptionPending = false,
     this.videoNoteTranscriptionError,
@@ -793,6 +794,11 @@ class ChatMessage {
   TdFileRef? video; // playable video file (messageVideo)
   int? videoDuration; // seconds, for the duration badge
   int? videoFileSize; // bytes, for the inline autoplay budget
+  /// Cover the media preview until explicitly revealed.
+  bool hasSpoiler;
+
+  /// Non-interactive quote/search previews cannot reveal a media spoiler.
+  TdFileRef? get previewImage => hasSpoiler ? null : image;
   String videoNoteTranscription;
   bool videoNoteTranscriptionPending;
   String? videoNoteTranscriptionError;
@@ -1649,6 +1655,8 @@ abstract final class TDParse {
         video: media.video,
         videoDuration: media.videoDuration,
         videoFileSize: media.videoFileSize,
+        hasSpoiler:
+            !isContentRestricted && (content?.boolean('has_spoiler') ?? false),
         videoNoteTranscription: videoNoteSpeech(content).$1,
         videoNoteTranscriptionPending: videoNoteSpeech(content).$2,
         videoNoteTranscriptionError: videoNoteSpeech(content).$3,

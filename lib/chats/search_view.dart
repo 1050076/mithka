@@ -2457,7 +2457,7 @@ class _SearchHit {
       date: message.date,
       sourceTitle: source.title,
       photo: source.photo,
-      thumbnail: message.image ?? music?.cover,
+      thumbnail: message.previewImage ?? music?.cover,
       chatId: chatId,
       message: message,
       icon: _messageIcon(message),

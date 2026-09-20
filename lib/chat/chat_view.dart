@@ -105,6 +105,7 @@ import 'media_album_layout.dart';
 import 'media_download_service.dart';
 import 'media_library_saver.dart';
 import 'media_send_preview_view.dart';
+import 'media_spoiler.dart';
 import 'message_action_menu.dart';
 import 'message_bubble.dart';
 import 'message_bubble_repository_view.dart';
@@ -4608,7 +4609,11 @@ class _ChatViewState extends State<ChatView> {
 
   VideoSplitSession _videoSession(ChatMessage message) {
     final videoMessages = _vm.messages
-        .where((candidate) => candidate.video != null)
+        .where(
+          (candidate) =>
+              candidate.video != null &&
+              canPreviewMediaAlongside(candidate, message),
+        )
         .toList();
     if (!videoMessages.any((candidate) => candidate.id == message.id)) {
       videoMessages.add(message);
@@ -4664,7 +4669,12 @@ class _ChatViewState extends State<ChatView> {
 
   void _openImage(ChatMessage message) {
     final pairs = _vm.messages
-        .where((m) => m.isPhoto && m.image != null)
+        .where(
+          (m) =>
+              m.isPhoto &&
+              m.image != null &&
+              canPreviewMediaAlongside(m, message),
+        )
         .toList();
     final items = pairs.map((m) => m.image!).toList();
     final start = pairs.indexWhere((m) => m.id == message.id);

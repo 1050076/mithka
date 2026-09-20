@@ -18,6 +18,7 @@ import '../theme/theme_controller.dart';
 import 'chat_appearance_preview.dart';
 import 'media_album_layout.dart';
 import 'media_preview_geometry.dart';
+import 'media_spoiler.dart';
 import 'message_action_menu.dart';
 import 'message_reply_count_badge.dart';
 import 'mobile_message_text_selection.dart';
@@ -727,47 +728,59 @@ class ImageMediaAlbumBubble extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                imageBuilder?.call(context, message, width, height) ??
-                    TDImage(
-                      photo: message.image,
-                      cornerRadius: 5,
-                      cacheWidth: _cachePx(context, width),
-                      cacheHeight: _cachePx(context, height),
-                      showProgress: true,
-                    ),
-                if (message.video != null)
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const AppIcon(
-                        HeroAppIcons.play,
-                        color: Colors.white,
-                        size: 21,
-                      ),
+                IgnorePointer(
+                  ignoring: selecting,
+                  child: MessageMediaSpoiler(
+                    message: message,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        imageBuilder?.call(context, message, width, height) ??
+                            TDImage(
+                              photo: message.image,
+                              cornerRadius: AppRadius.sm,
+                              cacheWidth: _cachePx(context, width),
+                              cacheHeight: _cachePx(context, height),
+                              showProgress: true,
+                            ),
+                        if (message.video != null)
+                          Center(
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const AppIcon(
+                                HeroAppIcons.play,
+                                color: Colors.white,
+                                size: 21,
+                              ),
+                            ),
+                          ),
+                        if (extraCount > 0)
+                          Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                            ),
+                            child: Text(
+                              '+$extraCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                if (extraCount > 0)
-                  Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                    ),
-                    child: Text(
-                      '+$extraCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                ),
                 if (selecting)
                   Positioned(
                     top: 6,

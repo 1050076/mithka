@@ -962,7 +962,8 @@
     <string name="chatJoinGroup">Rejoindre le groupe</string>
     <string name="chatJoinRequestPending">Demande envoyée, en attente d’approbation</string>
     <string name="chatJoinRequestSent">Demande envoyée</string>
-    <string name="chatLeaveAndDeleteDescription">Quitter « {value1} » et supprimer son historique de votre compte Telegram sur tous vos appareils.</string>
+    <string name="chatLeaveAndDeleteDescription">Quitter « {value1} » et le retirer de votre liste de discussions. Les messages ne seront pas supprimés pour les autres membres.</string>
+    <string name="chatLeaveHistoryCleanupFailed">Vous avez quitté le groupe, mais son historique de discussion n’a pas pu être effacé.</string>
     <string name="chatListAddFriendOrGroup">Ajouter un ami/groupe</string>
     <string name="chatListBlockedPlaceholder">[Bloqué]</string>
     <string name="chatListChannelName">Nom de la chaîne</string>
@@ -3431,4 +3432,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">Vérifiez l’enregistrement avant de l’envoyer. Les options d'envoi incluent la livraison silencieuse, la planification, les effets et la visualisation unique.</string>
     <string name="voiceNotePreviewVoiceMessage">Message vocal</string>
+    <string name="mediaSpoilerReveal">Spoiler. Touchez pour afficher</string>
 </resources>

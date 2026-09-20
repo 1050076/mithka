@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mithka/app/liquid_glass_bottom_bar.dart';
 import 'package:mithka/components/ui_components.dart';
 import 'package:mithka/l10n/app_localizations.dart';
-import 'package:mithka/settings/feature_settings_view.dart';
-import 'package:mithka/settings/safety_notice_controller.dart';
+import 'package:mithka/settings/app_icon_controller.dart';
+import 'package:mithka/settings/appearance_view.dart';
 import 'package:mithka/theme/app_theme.dart';
 import 'package:mithka/theme/theme_controller.dart';
 import 'package:provider/provider.dart';
@@ -17,21 +17,21 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final theme = ThemeController(prefs);
-    final safety = SafetyNoticeController(prefs);
+    final appIcons = AppIconController(prefs);
     addTearDown(theme.dispose);
-    addTearDown(safety.dispose);
+    addTearDown(appIcons.dispose);
     expect(theme.liquidGlassBottomBar, isFalse);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: theme),
-          ChangeNotifierProvider.value(value: safety),
+          ChangeNotifierProvider.value(value: appIcons),
         ],
         child: const MaterialApp(
           locale: Locale('en'),
           localizationsDelegates: [AppLocalizations.delegate],
-          home: FeatureSettingsView(),
+          home: AppearanceView(),
         ),
       ),
     );

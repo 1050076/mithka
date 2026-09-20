@@ -4893,6 +4893,10 @@ class ChatViewModel extends ChangeNotifier {
         final messageId = update.int64('message_id');
         final content = update.obj('new_content');
         if (messageId == null || content == null) return;
+        // Apply concealment immediately, before an asynchronous media refresh.
+        for (final message in _messageRefs(messageId)) {
+          message.hasSpoiler = content.boolean('has_spoiler') ?? false;
+        }
         if (content.type == 'messageChatHasProtectedContentToggled') {
           hasProtectedContent =
               content.boolean('new_has_protected_content') ??
@@ -5772,7 +5776,7 @@ class ChatViewModel extends ChangeNotifier {
     m.replyToPreview = _replyPreview(quoted);
     m.replyToDate = quoted.date;
     m.replyToEntities = quoted.textEntities;
-    m.replyToImage = quoted.image;
+    m.replyToImage = quoted.previewImage;
     m.replyToImageWidth = quoted.imageWidth;
     m.replyToImageHeight = quoted.imageHeight;
     if (quoted.isOutgoing) {

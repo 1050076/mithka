@@ -41,6 +41,7 @@ import 'app/desktop_video_window.dart';
 import 'app/desktop_window_controls.dart';
 import 'app/global_video_split_host.dart';
 import 'app/handoff_service.dart';
+import 'app/horizontal_safe_viewport.dart';
 import 'app/telemetry_config.dart';
 import 'auth/account_store.dart';
 import 'auth/auth_manager.dart';
@@ -843,21 +844,34 @@ class _MithkaAppState extends State<MithkaApp> with WidgetsBindingObserver {
               final unlockedApp = Stack(
                 children: [
                   Positioned.fill(
-                    child: GlobalVideoSplitHost(child: themedChild),
+                    child: GlobalVideoSplitHost(
+                      child: HorizontalSafeViewport(
+                        sideNavigation: true,
+                        child: themedChild,
+                      ),
+                    ),
                   ),
                   Overlay(
                     initialEntries: [
                       OverlayEntry(
-                        builder: (_) => const GlobalMusicPlayerOverlay(),
+                        builder: (_) => const HorizontalSafeViewport(
+                          child: Stack(children: [GlobalMusicPlayerOverlay()]),
+                        ),
                       ),
                     ],
                   ),
                   Positioned.fill(
-                    child: InAppNotificationBannerHost(
-                      controller: NotificationController.shared,
+                    child: HorizontalSafeViewport(
+                      child: InAppNotificationBannerHost(
+                        controller: NotificationController.shared,
+                      ),
                     ),
                   ),
-                  const Positioned.fill(child: GlobalCallOverlayHost()),
+                  const Positioned.fill(
+                    child: HorizontalSafeViewport(
+                      child: GlobalCallOverlayHost(),
+                    ),
+                  ),
                 ],
               );
               final framedUnlockedApp = DesktopPrimaryWindowFrame(
@@ -900,7 +914,10 @@ class _MithkaAppState extends State<MithkaApp> with WidgetsBindingObserver {
                       AppTextStyle.body(context.colors.textPrimary),
                       boldText: boldText,
                     ),
-                    child: hotkeyChild,
+                    child: ColoredBox(
+                      color: context.colors.background,
+                      child: hotkeyChild,
+                    ),
                   ),
                 ),
               );

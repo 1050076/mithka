@@ -961,7 +961,8 @@
     <string name="chatJoinGroup">그룹 참여</string>
     <string name="chatJoinRequestPending">참여 신청됨, 승인 대기 중</string>
     <string name="chatJoinRequestSent">참여 신청됨</string>
-    <string name="chatLeaveAndDeleteDescription">“{value1}”에서 나가고 Telegram 계정의 기록을 모든 기기에서 삭제합니다.</string>
+    <string name="chatLeaveAndDeleteDescription">“{value1}”에서 나가고 채팅 목록에서 제거합니다. 다른 멤버의 메시지는 삭제되지 않습니다.</string>
+    <string name="chatLeaveHistoryCleanupFailed">그룹에서 나갔지만 채팅 기록을 지우지 못했습니다.</string>
     <string name="chatListAddFriendOrGroup">친구/그룹 추가</string>
     <string name="chatListBlockedPlaceholder">[차단됨]</string>
     <string name="chatListChannelName">채널 이름</string>
@@ -3423,4 +3424,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">보내기 전에 녹음 내용을 검토하세요. 보내기 옵션에는 자동 전달, 예약, 효과 및 일회 보기가 포함됩니다.</string>
     <string name="voiceNotePreviewVoiceMessage">음성 메시지</string>
+    <string name="mediaSpoilerReveal">스포일러. 탭하여 표시</string>
 </resources>

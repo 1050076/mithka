@@ -32,6 +32,7 @@ import '../theme/date_text.dart';
 import 'file_detail_view.dart';
 import 'image_preview.dart';
 import 'link_handler.dart';
+import 'media_spoiler.dart';
 import 'music_player_controller.dart';
 import 'video_playback_queue.dart';
 import 'video_player_view.dart';
@@ -618,7 +619,9 @@ class _SharedMediaViewState extends State<SharedMediaView> {
 
   bool _usesWideMediaPresentation(BuildContext context) {
     if (!_tabs[_tab].videoOnly && !_tabs[_tab].musicOnly) return false;
-    return usesSplitSelectionLayout(MediaQuery.sizeOf(context));
+    final size = MediaQuery.sizeOf(context);
+    return usesDesktopShellLayout(size) ||
+        (size.width > size.height && usesSplitSelectionLayout(size));
   }
 
   bool _hidesInnerHeader(BuildContext context) {
@@ -1441,7 +1444,12 @@ class _SharedMediaViewState extends State<SharedMediaView> {
           return;
         }
         final photos = media
-            .where((m) => m.video == null && m.image != null)
+            .where(
+              (m) =>
+                  m.video == null &&
+                  m.image != null &&
+                  canPreviewMediaAlongside(m, message),
+            )
             .map((m) => m.image!)
             .toList();
         final photo = message.image;
@@ -1455,59 +1463,63 @@ class _SharedMediaViewState extends State<SharedMediaView> {
           ),
         );
       },
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ColoredBox(
-            color: const Color(0xFF111111),
-            child: message.image == null
-                ? const SizedBox.expand()
-                : TDImage(
-                    photo: message.image,
-                    cornerRadius: 0,
-                    fit: BoxFit.contain,
-                  ),
-          ),
-          if (video != null) ...[
-            Container(color: Colors.black.withValues(alpha: 0.16)),
-            Center(
-              child: Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.48),
-                  shape: BoxShape.circle,
-                ),
-                child: const AppIcon(
-                  HeroAppIcons.play,
-                  size: 18,
-                  color: Colors.white,
-                ),
-              ),
+      child: MessageMediaSpoiler(
+        message: message,
+        accountSlot: _accountSlot,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(
+              color: const Color(0xFF111111),
+              child: message.image == null
+                  ? const SizedBox.expand()
+                  : TDImage(
+                      photo: message.image,
+                      cornerRadius: 0,
+                      fit: BoxFit.contain,
+                    ),
             ),
-            if ((message.videoDuration ?? 0) > 0)
-              Positioned(
-                right: 5,
-                bottom: 5,
+            if (video != null) ...[
+              Container(color: Colors.black.withValues(alpha: 0.16)),
+              Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 2,
-                  ),
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.62),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    color: Colors.black.withValues(alpha: 0.48),
+                    shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    _duration(message.videoDuration!),
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                  child: const AppIcon(
+                    HeroAppIcons.play,
+                    size: 18,
+                    color: Colors.white,
                   ),
                 ),
               ),
+              if ((message.videoDuration ?? 0) > 0)
+                Positioned(
+                  right: 5,
+                  bottom: 5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.62),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Text(
+                      _duration(message.videoDuration!),
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ),
+                ),
+            ],
+            Positioned(top: 4, right: 4, child: _overlayMenu(message)),
           ],
-          Positioned(top: 4, right: 4, child: _overlayMenu(message)),
-        ],
+        ),
       ),
     );
   }
@@ -1611,53 +1623,61 @@ class _SharedMediaViewState extends State<SharedMediaView> {
             children: [
               AspectRatio(
                 aspectRatio: 16 / 9,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ColoredBox(
-                      color: const Color(0xFF111111),
-                      child: message.image == null
-                          ? const SizedBox.expand()
-                          : TDImage(
-                              photo: message.image,
-                              cornerRadius: 0,
-                              fit: BoxFit.contain,
+                child: MessageMediaSpoiler(
+                  message: message,
+                  accountSlot: _accountSlot,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ColoredBox(
+                        color: const Color(0xFF111111),
+                        child: message.image == null
+                            ? const SizedBox.expand()
+                            : TDImage(
+                                photo: message.image,
+                                cornerRadius: 0,
+                                fit: BoxFit.contain,
+                              ),
+                      ),
+                      Container(color: Colors.black.withValues(alpha: 0.12)),
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.58),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.5),
                             ),
-                    ),
-                    Container(color: Colors.black.withValues(alpha: 0.12)),
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 42,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.58),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.5),
+                          ),
+                          child: const AppIcon(
+                            HeroAppIcons.play,
+                            size: 19,
+                            color: Colors.white,
                           ),
                         ),
-                        child: const AppIcon(
-                          HeroAppIcons.play,
-                          size: 19,
-                          color: Colors.white,
+                      ),
+                      if (duration > 0)
+                        Positioned(
+                          left: 9,
+                          bottom: 9,
+                          child: _overlayPill(_duration(duration)),
                         ),
-                      ),
-                    ),
-                    if (duration > 0)
+                      if (state?.completed == true)
+                        Positioned(
+                          right: 48,
+                          top: 10,
+                          child: _downloadBadge(state),
+                        ),
                       Positioned(
-                        left: 9,
-                        bottom: 9,
-                        child: _overlayPill(_duration(duration)),
+                        right: 9,
+                        top: 9,
+                        child: _overlayMenu(message),
                       ),
-                    if (state?.completed == true)
-                      Positioned(
-                        right: 48,
-                        top: 10,
-                        child: _downloadBadge(state),
-                      ),
-                    Positioned(right: 9, top: 9, child: _overlayMenu(message)),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               Expanded(
@@ -2041,45 +2061,49 @@ class _SharedMediaViewState extends State<SharedMediaView> {
                 height: 56,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.md),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ColoredBox(
-                        color: const Color(0xFF111111),
-                        child: message.image == null
-                            ? const SizedBox.expand()
-                            : TDImage(
-                                photo: message.image,
-                                cornerRadius: 0,
-                                fit: BoxFit.contain,
-                              ),
-                      ),
-                      Container(color: Colors.black.withValues(alpha: 0.12)),
-                      Center(
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.52),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const AppIcon(
-                            HeroAppIcons.play,
-                            size: 14,
-                            color: Colors.white,
+                  child: MessageMediaSpoiler(
+                    message: message,
+                    accountSlot: _accountSlot,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ColoredBox(
+                          color: const Color(0xFF111111),
+                          child: message.image == null
+                              ? const SizedBox.expand()
+                              : TDImage(
+                                  photo: message.image,
+                                  cornerRadius: 0,
+                                  fit: BoxFit.contain,
+                                ),
+                        ),
+                        Container(color: Colors.black.withValues(alpha: 0.12)),
+                        Center(
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.52),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const AppIcon(
+                              HeroAppIcons.play,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
-                      if ((message.videoDuration ?? 0) > 0)
-                        Positioned(
-                          right: 5,
-                          bottom: 5,
-                          child: _overlayPill(
-                            _duration(message.videoDuration!),
+                        if ((message.videoDuration ?? 0) > 0)
+                          Positioned(
+                            right: 5,
+                            bottom: 5,
+                            child: _overlayPill(
+                              _duration(message.videoDuration!),
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2528,7 +2552,11 @@ class _SharedMediaViewState extends State<SharedMediaView> {
     ChatMessage current,
   ) {
     final videos = candidates
-        .where((message) => message.video != null)
+        .where(
+          (message) =>
+              message.video != null &&
+              canPreviewMediaAlongside(message, current),
+        )
         .toList();
     if (!videos.any((message) => message.id == current.id)) videos.add(current);
     final index = videos.indexWhere((message) => message.id == current.id);

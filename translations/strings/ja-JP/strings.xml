@@ -961,7 +961,8 @@
     <string name="chatJoinGroup">グループに参加</string>
     <string name="chatJoinRequestPending">参加申請済み、承認待ちです</string>
     <string name="chatJoinRequestSent">参加申請を送信しました</string>
-    <string name="chatLeaveAndDeleteDescription">「{value1}」から退出し、Telegramアカウントの履歴をすべての端末から削除します。</string>
+    <string name="chatLeaveAndDeleteDescription">「{value1}」から退出し、チャット一覧から削除します。他のメンバーのメッセージは削除されません。</string>
+    <string name="chatLeaveHistoryCleanupFailed">グループから退出しましたが、チャット履歴を消去できませんでした。</string>
     <string name="chatListAddFriendOrGroup">友だち/グループを追加</string>
     <string name="chatListBlockedPlaceholder">[ブロック済み]</string>
     <string name="chatListChannelName">チャンネル名</string>
@@ -3423,4 +3424,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">送信する前に録音を確認してください。送信オプションには、サイレント配信、スケジュール、エフェクト、ビューワンスが含まれます。</string>
     <string name="voiceNotePreviewVoiceMessage">音声</string>
+    <string name="mediaSpoilerReveal">ネタバレ。タップして表示</string>
 </resources>

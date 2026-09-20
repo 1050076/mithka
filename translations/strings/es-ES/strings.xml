@@ -962,7 +962,8 @@
     <string name="chatJoinGroup">Unirse al grupo</string>
     <string name="chatJoinRequestPending">Solicitud enviada, pendiente de aprobación</string>
     <string name="chatJoinRequestSent">Solicitud enviada</string>
-    <string name="chatLeaveAndDeleteDescription">Salir de «{value1}» y eliminar su historial de tu cuenta de Telegram en todos tus dispositivos.</string>
+    <string name="chatLeaveAndDeleteDescription">Salir de «{value1}» y quitarlo de tu lista de chats. No se eliminarán los mensajes para otros miembros.</string>
+    <string name="chatLeaveHistoryCleanupFailed">Has salido del grupo, pero no se pudo borrar su historial de chat.</string>
     <string name="chatListAddFriendOrGroup">Añadir amigo/grupo</string>
     <string name="chatListBlockedPlaceholder">[Bloqueado]</string>
     <string name="chatListChannelName">Nombre del canal</string>
@@ -3431,4 +3432,5 @@
     <string name="vipBadgeLabel">VIP</string>
     <string name="voiceNotePreviewReviewTheRecordingBeforeSendingSendOptionsInclude">Revise la grabación antes de enviarla. Las opciones de envío incluyen entrega silenciosa, programación, efectos y visualización única.</string>
     <string name="voiceNotePreviewVoiceMessage">Mensaje de voz</string>
+    <string name="mediaSpoilerReveal">Spoiler. Toca para mostrar</string>
 </resources>
