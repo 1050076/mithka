@@ -60,9 +60,29 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Prepare deterministic iOS build inputs
-        run: sh ci_scripts/ci_post_clone.sh
-        env:
-          FIREBASE_IOS_GOOGLESERVICE_INFO_PLIST_B64: ''
+        run: |
+          set -euo pipefail
+          # ci_post_clone.sh requires a Firebase plist to exist. Ship a
+          # deliberate placeholder: valid plist shape, but BUNDLE_ID mismatch
+          # makes both the Xcode copy phase and the runtime availability
+          # check skip Firebase, so no real Firebase project is needed.
+          placeholder="$(mktemp)"
+          cat > "$placeholder" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>GOOGLE_APP_ID</key>
+            <string>1:000000000000:ios:0000000000000000000000</string>
+            <key>BUNDLE_ID</key>
+            <string>placeholder.not.configured</string>
+          </dict>
+          </plist>
+          PLIST
+          export FIREBASE_IOS_GOOGLESERVICE_INFO_PLIST_B64="$(
+            base64 < "$placeholder" | tr -d '\n'
+          )"
+          sh ci_scripts/ci_post_clone.sh
 
       - name: Archive iOS app (unsigned, ad-hoc codesign)
         run: |
