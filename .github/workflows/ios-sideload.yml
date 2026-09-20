@@ -27,8 +27,13 @@ jobs:
       # Build tdjson.xcframework from verified upstream source + the vendored
       # patch set instead of downloading the author's prebuilt binary.
       TDJSON_FROM_SOURCE: '1'
-      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+      # Deliberately credential-free. This fork's releases are public, so any
+      # real api id/hash compiled in here would be extractable from the binary
+      # (`strings data/app.so`). The app asks the user for their own credentials
+      # in Settings on first run instead; ci_post_clone.sh only needs the values
+      # to be non-empty, hence the explicit placeholders.
+      TELEGRAM_API_ID: '0'
+      TELEGRAM_API_HASH: 'not-configured'
       SENTRY_DSN: ''
       # TgVoipWebrtc comes from this fork's own self-built release (published
       # by mithka-tdjson's build-tgvoip-ios.yml) rather than the upstream one.
@@ -135,4 +140,4 @@ jobs:
           name: mithka-sideload-ipa
           path: ${{ runner.temp }}/IPA/mithka-sideload.ipa
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1

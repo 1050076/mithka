@@ -253,7 +253,7 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/f_videoplayer"
-      ref: "v0.5.7"
+      ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       resolved-ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       url: "https://github.com/iebb/f-videoplayer.git"
     source: git
@@ -262,7 +262,7 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/f_videoplayer_fvp"
-      ref: "v0.5.7"
+      ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       resolved-ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       url: "https://github.com/iebb/f-videoplayer.git"
     source: git
@@ -271,7 +271,7 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/f_videoplayer_pip"
-      ref: "v0.5.7"
+      ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       resolved-ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       url: "https://github.com/iebb/f-videoplayer.git"
     source: git
@@ -598,7 +598,7 @@ packages:
     dependency: "direct main"
     description:
       path: "third_party/fvp"
-      ref: "v0.5.7"
+      ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       resolved-ref: "1e81ed16d036070bea6d08c82eb0797fa1e5d089"
       url: "https://github.com/iebb/f-videoplayer.git"
     source: git

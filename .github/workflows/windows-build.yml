@@ -24,9 +24,6 @@ jobs:
     name: Build Windows x64
     runs-on: windows-2022
     timeout-minutes: 150
-    env:
-      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
 
     steps:
       - uses: actions/checkout@v7
@@ -53,17 +50,18 @@ jobs:
       - name: Resolve Flutter dependencies
         run: flutter pub get
 
-      - name: Write secrets.dart
+      - name: Write credential-free secrets.dart
         shell: bash
-        env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: |
+          # No Telegram api id/hash is compiled in: this fork's artifacts are
+          # public, so a real value here would be extractable from the binary.
+          # The app prompts for the user's own credentials in Settings on first
+          # run and uses those (lib/settings/api_credentials_config.dart).
           mkdir -p lib/config
-          cat > lib/config/secrets.dart <<EOF
+          cat > lib/config/secrets.dart <<'EOF'
           class Secrets {
-            static const int apiId = ${TELEGRAM_API_ID:-0};
-            static const String apiHash = '${TELEGRAM_API_HASH}';
+            static const int apiId = 0;
+            static const String apiHash = 'not-configured';
             static bool get isConfigured => apiId != 0 && apiHash.isNotEmpty;
           }
           EOF
@@ -136,7 +134,7 @@ jobs:
           name: mithka-windows-x64-zip
           path: dist/mithka-windows-x64.zip
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v7
@@ -144,4 +142,4 @@ jobs:
           name: mithka-windows-x64-setup
           path: dist/mithka-windows-local-windows-x64-setup.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1

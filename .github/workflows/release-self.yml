@@ -27,9 +27,7 @@ jobs:
     name: Build Windows x64
     runs-on: windows-2022
     timeout-minutes: 150
-    env:
-      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+
     steps:
       - uses: actions/checkout@v7
 
@@ -55,17 +53,17 @@ jobs:
       - name: Resolve Flutter dependencies
         run: flutter pub get
 
-      - name: Write secrets.dart
+      - name: Write credential-free secrets.dart
         shell: bash
-        env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: |
+          # Credential-free by design: this fork's releases are public, so a
+          # compiled-in api id/hash would be extractable from the binary. The
+          # app asks for the user's own credentials in Settings on first run.
           mkdir -p lib/config
-          cat > lib/config/secrets.dart <<EOF
+          cat > lib/config/secrets.dart <<'EOF'
           class Secrets {
-            static const int apiId = ${TELEGRAM_API_ID:-0};
-            static const String apiHash = '${TELEGRAM_API_HASH}';
+            static const int apiId = 0;
+            static const String apiHash = 'not-configured';
             static bool get isConfigured => apiId != 0 && apiHash.isNotEmpty;
           }
           EOF
@@ -140,6 +138,7 @@ jobs:
             dist/mithka-*-windows-x64.zip
             dist/mithka-*-windows-x64-setup.exe
           if-no-files-found: error
+          retention-days: 1
 
   publish:
     name: Publish release
