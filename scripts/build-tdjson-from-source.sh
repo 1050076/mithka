@@ -41,8 +41,15 @@ esac
 
 # The vendored patches are part of the trusted build definition; refuse to
 # build if anyone modified them without updating the checksum manifest.
+# Strip CR first: a checkout with autocrlf=true rewrites the manifest and the
+# patch files, which would otherwise break both the checksum and `git apply`.
 (
   cd "$PATCH_DIR"
+  find . -name '*.patch' -o -name series -o -name PATCHES.SHA256SUMS |
+    while IFS= read -r f; do
+      tmp="$(mktemp)"
+      tr -d '\r' < "$f" > "$tmp" && mv "$tmp" "$f"
+    done
   sha256sum --quiet --check PATCHES.SHA256SUMS
   echo "==> patch set checksums verified"
 )
@@ -70,6 +77,7 @@ while IFS= read -r patch_name; do
   [[ -n "$patch_name" ]] || continue
   [[ "$patch_name" != \#* ]] || continue
   patch_file="$PATCH_DIR/$patch_name"
+  test -f "$patch_file"
   git -C "$TD_SOURCE" apply --unidiff-zero "$patch_file"
   echo "==> applied $patch_name"
 done < "$PATCH_DIR/series"
