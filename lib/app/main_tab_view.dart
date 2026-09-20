@@ -728,19 +728,21 @@ abstract class _MainRootViewState<T extends StatefulWidget> extends State<T> {
       animation: MusicPlayerController.shared,
       builder: (context, _) {
         final player = MusicPlayerController.shared;
+        final content =
+            player.isVisible &&
+                !player.collapsed &&
+                !player.hasEmbeddedPlayerHost
+            ? GlobalMusicPlayerBar(
+                bottomPadding: safeBottom
+                    ? MediaQuery.paddingOf(context).bottom.clamp(0, 12)
+                    : 0,
+              )
+            : const SizedBox.shrink();
+        if (AppMotion.isReduced(context)) return content;
         return AnimatedSize(
           duration: AppMotion.duration(context, AppMotion.responsive),
           curve: AppMotion.standard,
-          child:
-              player.isVisible &&
-                  !player.collapsed &&
-                  !player.hasEmbeddedPlayerHost
-              ? GlobalMusicPlayerBar(
-                  bottomPadding: safeBottom
-                      ? MediaQuery.paddingOf(context).bottom.clamp(0, 12)
-                      : 0,
-                )
-              : const SizedBox.shrink(),
+          child: content,
         );
       },
     );
