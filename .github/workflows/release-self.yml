@@ -1,0 +1,176 @@
+name: Self Release
+
+# Publishes this fork's own release, so the in-app updater (which now reads
+# lib/update/release_feed.dart -> MITHKA_RELEASE_OWNER) has a feed to consume.
+# Asset names must keep ending with the suffix desktopPackageSuffix() returns
+# for the platform: mithka-<version>-windows-x64.zip.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Marketing version to publish (tag becomes v<version>)
+        required: true
+      prerelease:
+        description: Publish as a pre-release (not offered as an update)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: '3.44.2'
+
+jobs:
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install tdjson build dependencies
+        shell: pwsh
+        run: |
+          choco install -y gperf
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib:x64-windows-static openssl:x64-windows-static
+          $zlib = & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" list zlib:x64-windows-static
+          if (-not $zlib) { throw "zlib:x64-windows-static not installed" }
+
+      - name: Build tdjson from verified source
+        shell: bash
+        run: |
+          scripts/build-tdjson-from-source.sh windows native-libs/tdjson.dll x64
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Write secrets.dart
+        shell: bash
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          mkdir -p lib/config
+          cat > lib/config/secrets.dart <<EOF
+          class Secrets {
+            static const int apiId = ${TELEGRAM_API_ID:-0};
+            static const String apiHash = '${TELEGRAM_API_HASH}';
+            static bool get isConfigured => apiId != 0 && apiHash.isNotEmpty;
+          }
+          EOF
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $stamp = Get-Date -AsUTC -Format 'yyMMddHH'
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          flutter build windows --release --no-pub `
+            --build-name="$version" `
+            --build-number="$stamp" `
+            --dart-define="GIT_COMMIT=$shortSha" `
+            --dart-define="CI_BUILD_STAMP=$stamp" `
+            --dart-define="SENTRY_DSN=" `
+            --dart-define="MITHKA_RELEASE_OWNER=1050076" `
+            --dart-define="MITHKA_RELEASE_REPO=mithka"
+
+      - name: Package Windows release
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $bundle = "build\windows\x64\runner\Release"
+          Copy-Item "native-libs\tdjson.dll" "$bundle\tdjson.dll"
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class NativeLibraryCheck {
+            [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+            public static extern IntPtr LoadLibrary(string path);
+            [DllImport("kernel32", SetLastError = true)]
+            public static extern IntPtr GetProcAddress(IntPtr module, string name);
+            [DllImport("kernel32", SetLastError = true)]
+            public static extern bool FreeLibrary(IntPtr module);
+          }
+          '@
+          $module = [NativeLibraryCheck]::LoadLibrary((Resolve-Path "$bundle\tdjson.dll"))
+          if ($module -eq [IntPtr]::Zero) {
+            throw "Could not load packaged tdjson.dll: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
+          }
+          foreach ($symbol in @(
+            "td_create_client_id",
+            "td_mithka_export_session_string",
+            "td_mithka_import_session_string",
+            "td_mithka_last_error",
+            "td_mithka_set_transfer_boost")) {
+            if ([NativeLibraryCheck]::GetProcAddress($module, $symbol) -eq [IntPtr]::Zero) {
+              throw "Packaged tdjson.dll does not export $symbol"
+            }
+          }
+          [void][NativeLibraryCheck]::FreeLibrary($module)
+          New-Item -ItemType Directory -Force dist\package | Out-Null
+          Copy-Item $bundle dist\package\Mithka -Recurse
+          # Name must end with windows-x64.zip: desktopPackageSuffix() matches it.
+          Compress-Archive -Path dist\package\Mithka `
+            -DestinationPath "dist\mithka-$version-windows-x64.zip"
+
+          & scripts\build-windows-installer.ps1 `
+            -Architecture "x64" `
+            -BuildDirectory $bundle `
+            -OutputDirectory dist `
+            -Version $version `
+            -ArtifactLabel $version
+          Get-ChildItem dist
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-release-assets
+          path: |
+            dist/mithka-*-windows-x64.zip
+            dist/mithka-*-windows-x64-setup.exe
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-release-assets
+          path: release-assets
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ls -lh release-assets
+          tag="v${VERSION}"
+          args=(--title "Mithka ${VERSION}" --notes "Self-built release: TDLib built from verified upstream source.")
+          if [ "$PRERELEASE" = "true" ]; then
+            args+=(--prerelease)
+          else
+            args+=(--latest)
+          fi
+          if gh release view "$tag" -R "$REPO" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* -R "$REPO" --clobber
+          else
+            gh release create "$tag" release-assets/* -R "$REPO" "${args[@]}"
+          fi
+          gh release view "$tag" -R "$REPO" --json tagName,assets \
+            --jq '{tag: .tagName, assets: [.assets[] | {name, digest}]}'

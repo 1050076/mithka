@@ -14,8 +14,20 @@ import 'dart:io';
 /// GitHub rejects requests without a User-Agent.
 const releaseFeedUserAgent = 'mithka-update-checker';
 
-const _owner = 'iebb';
-const _repo = 'mithka';
+/// Where this build looks for its own releases.
+///
+/// A fork that publishes its own packages must not send users to the upstream
+/// author's releases: the desktop updater downloads whatever this feed points
+/// at and swaps it over the running install. Both values are compile-time
+/// overridable so a build can be repointed without touching this file.
+const _owner = String.fromEnvironment(
+  'MITHKA_RELEASE_OWNER',
+  defaultValue: '1050076',
+);
+const _repo = String.fromEnvironment(
+  'MITHKA_RELEASE_REPO',
+  defaultValue: 'mithka',
+);
 
 /// Where a user is sent when an in-place update is not something this install
 /// can do for them.
