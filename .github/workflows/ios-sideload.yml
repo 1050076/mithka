@@ -1,0 +1,108 @@
+name: iOS Sideload IPA
+
+# Builds an unsigned sideload-ready IPA on top of the same deterministic inputs
+# as the TestFlight workflow, for users without an Apple developer account.
+# Requires only TELEGRAM_API_ID and TELEGRAM_API_HASH secrets.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - 'sideload**'
+permissions:
+  contents: read
+
+concurrency:
+  group: mithka-ios-sideload-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sideload-ipa:
+    name: Build unsigned sideload IPA
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      MITHKA_CI_PLATFORM: ios
+      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+      SENTRY_DSN: ''
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: stable
+          cache: true
+
+      - name: Select Xcode 26
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort -V | tail -1)"
+          test -n "$xcode_path"
+          echo "DEVELOPER_DIR=$xcode_path/Contents/Developer" >> "$GITHUB_ENV"
+
+      - name: Set build identity
+        run: |
+          set -euo pipefail
+          build_number="$(sh scripts/apple_ci_build_number.sh "$GITHUB_SHA")"
+          {
+            echo "CI_BUILD_NUMBER=$build_number"
+            echo "CI_COMMIT=$GITHUB_SHA"
+            echo "CI_PRIMARY_REPOSITORY_PATH=$GITHUB_WORKSPACE"
+            echo "CI_DERIVED_DATA_PATH=$RUNNER_TEMP/MithkaDerivedData"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare deterministic iOS build inputs
+        run: sh ci_scripts/ci_post_clone.sh
+        env:
+          FIREBASE_IOS_GOOGLESERVICE_INFO_PLIST_B64: ''
+
+      - name: Archive iOS app (unsigned, ad-hoc codesign)
+        run: |
+          set -euo pipefail
+          archive_path="$RUNNER_TEMP/Mithka-iOS.xcarchive"
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$archive_path" \
+            -derivedDataPath "$CI_DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            CODE_SIGN_ENTITLEMENTS= \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM=
+
+          echo "ARCHIVE_PATH=$archive_path" >> "$GITHUB_ENV"
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          payload="$RUNNER_TEMP/Payload"
+          rm -rf "$payload"
+          mkdir -p "$payload"
+          cp -R "$ARCHIVE_PATH/Products/Applications/Runner.app" "$payload/"
+          # Re-sign ad-hoc so the bundle has a detachable signature for
+          # sideload tools; entitlements are (re)applied by the sideload tool.
+          codesign --force --deep --sign - --timestamp=none \
+            "$payload/Runner.app"
+          mkdir -p "$RUNNER_TEMP/IPA"
+          (cd "$RUNNER_TEMP" && zip -qry refresh.ipa Payload)
+          mv "$RUNNER_TEMP/refresh.ipa" "$RUNNER_TEMP/IPA/mithka-sideload.ipa"
+
+      - name: Upload sideload IPA artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mithka-sideload-ipa
+          path: ${{ runner.temp }}/IPA/mithka-sideload.ipa
+          if-no-files-found: error
+          retention-days: 14
