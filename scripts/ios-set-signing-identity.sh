@@ -118,6 +118,20 @@ for key in $STRIP_ENTITLEMENTS; do
   strip_entitlement "$key" "$EXTENSION_ENTITLEMENTS"
 done
 
+# Optional: rename the app on the device (the icon label). Off unless
+# IOS_APP_DISPLAY_NAME is set, so the repository keeps its own name.
+if [ -n "${IOS_APP_DISPLAY_NAME:-}" ]; then
+  DISPLAY_NAME="$IOS_APP_DISPLAY_NAME"
+  pairs="$(grep -c -E '<key>(CFBundleDisplayName|CFBundleName)</key>' "$INFO_PLIST" || true)"
+  [ "$pairs" -eq 2 ] || fail "expected CFBundleDisplayName + CFBundleName in $INFO_PLIST, found $pairs"
+  NAME="$DISPLAY_NAME" perl -0777 -pi -e \
+    's{(<key>CFBundleName</key>\s*<string>)[^<]*(</string>)}{$1 . $ENV{NAME} . $2}ge' "$INFO_PLIST"
+  NAME="$DISPLAY_NAME" perl -0777 -pi -e \
+    's{(<key>CFBundleDisplayName</key>\s*<string>)[^<]*(</string>)}{$1 . $ENV{NAME} . $2}ge' "$INFO_PLIST"
+  grep -q -F "<string>$DISPLAY_NAME</string>" "$INFO_PLIST" || fail "could not apply display name $DISPLAY_NAME"
+  echo "✓ device display name → $DISPLAY_NAME"
+fi
+
 # The rewritten files must no longer mention the upstream identity.
 leftovers="$(grep -l -F -e "$UPSTREAM_TEAM_ID" -e "$UPSTREAM_BUNDLE_ID" -e "$UPSTREAM_APP_GROUP" \
   "$PBXPROJ" "$PRO_BRIDGE" "$PRO_SERVICE" "$INFO_PLIST" "$HANDOFF" "$EXPORT_OPTIONS" \

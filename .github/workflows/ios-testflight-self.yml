@@ -13,6 +13,8 @@ name: iOS TestFlight
 #                              (App Store Connect → your app → App Information)
 #                                                                      [required]
 #   IOS_APP_GROUP              defaults to group.<IOS_BUNDLE_ID>.notifications
+#   IOS_APP_DISPLAY_NAME       optional; renames the app on the device (the icon
+#                              label) without touching the repository default
 #   IOS_STRIP_ENTITLEMENTS     entitlements to drop; defaults to
 #                              com.apple.developer.private-cloud-compute
 #                              (Apple grants that one only on request). Use the
@@ -67,6 +69,7 @@ jobs:
       IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
       IOS_APP_GROUP: ${{ vars.IOS_APP_GROUP }}
       IOS_STRIP_ENTITLEMENTS: ${{ vars.IOS_STRIP_ENTITLEMENTS }}
+      IOS_APP_DISPLAY_NAME: ${{ vars.IOS_APP_DISPLAY_NAME }}
       APP_STORE_ID: ${{ vars.IOS_APP_STORE_ID }}
       ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
