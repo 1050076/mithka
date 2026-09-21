@@ -132,6 +132,31 @@ if [ -n "${IOS_APP_DISPLAY_NAME:-}" ]; then
   echo "✓ device display name → $DISPLAY_NAME"
 fi
 
+# Optional: manual signing. When profile names are supplied, write a
+# PROVISIONING_PROFILE_SPECIFIER next to each target's bundle identifier so
+# xcodebuild has no reason to talk to App Store Connect at archive time
+# (automatic signing needs API-key auth that can fail; a profile built by
+# scripts in this repository removes that dependency).
+if [ -n "${IOS_PROFILE_APP:-}" ]; then
+  APP_PROFILE="$IOS_PROFILE_APP" \
+  EXT_PROFILE="${IOS_PROFILE_EXTENSION:-$IOS_PROFILE_APP}" \
+  APP_BUNDLE="$BUNDLE_ID" \
+  perl -0777 -pi -e '
+    my ($app, $ext, $base) = ($ENV{APP_PROFILE}, $ENV{EXT_PROFILE}, $ENV{APP_BUNDLE});
+    s{(PRODUCT_BUNDLE_IDENTIFIER = )([^;]+)(;)}{
+      my ($head, $id, $tail) = ($1, $2, $3);
+      my $profile = $id eq $base ? $app
+                  : $id eq $base . ".NotificationService" ? $ext
+                  : "";
+      $profile ? $head . $id . $tail . "\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = " . $profile . ";"
+               : $head . $id . $tail;
+    }ge;
+  ' "$PBXPROJ"
+  injected="$(grep -c 'PROVISIONING_PROFILE_SPECIFIER' "$PBXPROJ" || true)"
+  [ "$injected" -eq 6 ] || fail "expected 6 PROVISIONING_PROFILE_SPECIFIER entries (3 app + 3 extension), found $injected"
+  echo "✓ manual signing profiles assigned ($injected targets)"
+fi
+
 # The rewritten files must no longer mention the upstream identity.
 leftovers="$(grep -l -F -e "$UPSTREAM_TEAM_ID" -e "$UPSTREAM_BUNDLE_ID" -e "$UPSTREAM_APP_GROUP" \
   "$PBXPROJ" "$PRO_BRIDGE" "$PRO_SERVICE" "$INFO_PLIST" "$HANDOFF" "$EXPORT_OPTIONS" \

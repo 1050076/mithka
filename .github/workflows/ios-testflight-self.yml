@@ -15,6 +15,10 @@ name: iOS TestFlight
 #   IOS_APP_GROUP              defaults to group.<IOS_BUNDLE_ID>.notifications
 #   IOS_APP_DISPLAY_NAME       optional; renames the app on the device (the icon
 #                              label) without touching the repository default
+#   IOS_PROFILE_APP            name of the App Store provisioning profile for the
+#                              app bundle id                        [required]
+#   IOS_PROFILE_EXTENSION      name of the App Store profile for the notification
+#                              service extension                    [required]
 #   IOS_STRIP_ENTITLEMENTS     entitlements to drop; defaults to
 #                              com.apple.developer.private-cloud-compute
 #                              (Apple grants that one only on request). Use the
@@ -70,6 +74,8 @@ jobs:
       IOS_APP_GROUP: ${{ vars.IOS_APP_GROUP }}
       IOS_STRIP_ENTITLEMENTS: ${{ vars.IOS_STRIP_ENTITLEMENTS }}
       IOS_APP_DISPLAY_NAME: ${{ vars.IOS_APP_DISPLAY_NAME }}
+      IOS_PROFILE_APP: ${{ vars.IOS_PROFILE_APP }}
+      IOS_PROFILE_EXTENSION: ${{ vars.IOS_PROFILE_EXTENSION }}
       APP_STORE_ID: ${{ vars.IOS_APP_STORE_ID }}
       ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -123,17 +129,16 @@ jobs:
           openssl pkey -in "$key_path" -noout -check >/dev/null
           echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
 
-      - name: Import distribution certificate (optional)
+      - name: Import distribution certificate
         env:
           SIGNING_CERTIFICATE_P12: ${{ secrets.IOS_SIGNING_CERTIFICATE_P12 }}
           SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.IOS_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${SIGNING_CERTIFICATE_P12:-}" ]; then
-            echo "▸ no IOS_SIGNING_CERTIFICATE_P12 — asking App Store Connect to"
-            echo "  create the distribution certificate on this runner instead."
-            exit 0
-          fi
+          # Manual signing below needs this identity in the keychain; the
+          # certificate and the profiles are created by scripts/make-ios-signing-assets.py
+          # from the App Store Connect API, so nothing is tied to a Mac.
+          : "${SIGNING_CERTIFICATE_P12:?missing IOS_SIGNING_CERTIFICATE_P12}"
           : "${SIGNING_CERTIFICATE_PASSWORD:?missing IOS_SIGNING_CERTIFICATE_PASSWORD}"
           signing_keychain="$RUNNER_TEMP/mithka-signing.keychain-db"
           signing_p12="$RUNNER_TEMP/mithka-signing.p12"
@@ -158,6 +163,28 @@ jobs:
             echo "CI_SIGNING_KEYCHAIN=$signing_keychain"
             echo "CI_SIGNING_P12=$signing_p12"
           } >> "$GITHUB_ENV"
+
+      - name: Install provisioning profiles
+        env:
+          PROFILE_APP: ${{ secrets.IOS_PROVISIONING_PROFILE_APP }}
+          PROFILE_EXTENSION: ${{ secrets.IOS_PROVISIONING_PROFILE_EXTENSION }}
+        run: |
+          set -euo pipefail
+          : "${PROFILE_APP:?missing IOS_PROVISIONING_PROFILE_APP}"
+          : "${PROFILE_EXTENSION:?missing IOS_PROVISIONING_PROFILE_EXTENSION}"
+          profile_dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$profile_dir"
+          for pair in "app:$PROFILE_APP" "extension:$PROFILE_EXTENSION"; do
+            label="${pair%%:*}"
+            content="${pair#*:}"
+            target="$RUNNER_TEMP/$label.mobileprovision"
+            printf '%s' "$content" | base64 --decode > "$target"
+            uuid="$(security cms -D -i "$target" | plutil -extract UUID raw -)"
+            name="$(security cms -D -i "$target" | plutil -extract Name raw -)"
+            bundle="$(security cms -D -i "$target" | plutil -extract Entitlements.application-identifier raw -)"
+            cp "$target" "$profile_dir/$uuid.mobileprovision"
+            echo "▸ $label profile: $name ($uuid) for $bundle"
+          done
 
       - name: Apply Apple signing identity
         run: |
@@ -214,6 +241,13 @@ jobs:
         run: |
           set -euo pipefail
           archive_path="$RUNNER_TEMP/Mithka-iOS.xcarchive"
+          # ci_post_clone.sh pins MARKETING_VERSION through the upstream nightly
+          # rule, which collapses a non-release branch onto X.Y.0. This build is
+          # named for the version it ships, so state it explicitly.
+          marketing_version="$(
+            awk '/^version:/ { print $2; exit }' pubspec.yaml | cut -d+ -f1
+          )"
+          test -n "$marketing_version"
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -221,13 +255,14 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$archive_path" \
             -derivedDataPath "$CI_DERIVED_DATA_PATH" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER=
+            MARKETING_VERSION="$marketing_version" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID"
+
+          # No PROVISIONING_PROFILE_SPECIFIER on the command line: the identity
+          # script already wrote one per target, and a command-line value would
+          # apply the app's profile to the notification extension as well.
 
           app="$archive_path/Products/Applications/Runner.app"
           # Prove the identity rewrite reached the signature: an archive signed
@@ -283,19 +318,18 @@ jobs:
           plutil -create xml1 "$export_options"
           plutil -insert method -string app-store-connect "$export_options"
           plutil -insert destination -string export "$export_options"
-          plutil -insert signingStyle -string automatic "$export_options"
+          plutil -insert signingStyle -string manual "$export_options"
           plutil -insert teamID -string "$IOS_TEAM_ID" "$export_options"
+          plutil -insert provisioningProfiles -json \
+            "{\"$IOS_BUNDLE_ID\":\"$IOS_PROFILE_APP\",\"$IOS_BUNDLE_ID.NotificationService\":\"$IOS_PROFILE_EXTENSION\"}" \
+            "$export_options"
           plutil -insert manageAppVersionAndBuildNumber -bool NO "$export_options"
           plutil -insert stripSwiftSymbols -bool YES "$export_options"
           plutil -insert uploadSymbols -bool YES "$export_options"
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$upload_path" \
-            -exportOptionsPlist "$export_options" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -exportOptionsPlist "$export_options"
 
           ipa_count="$(find "$upload_path" -maxdepth 1 -type f -name '*.ipa' -print | wc -l | tr -d ' ')"
           test "$ipa_count" -eq 1
