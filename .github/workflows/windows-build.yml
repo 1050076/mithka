@@ -90,6 +90,10 @@ jobs:
             --dart-define="CI_BUILD_STAMP=$stamp" `
             --dart-define="SENTRY_DSN="
 
+      - name: Assert no build-time credentials in the binary
+        shell: bash
+        run: bash scripts/check-no-embedded-credentials.sh "build/windows/x64/runner/Release"
+
       - name: Package Windows release
         shell: pwsh
         run: |

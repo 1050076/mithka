@@ -93,6 +93,10 @@ jobs:
             --dart-define="MITHKA_RELEASE_OWNER=1050076" `
             --dart-define="MITHKA_RELEASE_REPO=mithka"
 
+      - name: Assert no build-time credentials in the binary
+        shell: bash
+        run: bash scripts/check-no-embedded-credentials.sh "build/windows/x64/runner/Release"
+
       - name: Package Windows release
         shell: pwsh
         run: |

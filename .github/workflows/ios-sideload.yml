@@ -124,6 +124,9 @@ jobs:
 
           echo "ARCHIVE_PATH=$archive_path" >> "$GITHUB_ENV"
 
+      - name: Assert no build-time credentials in the binary
+        run: bash scripts/check-no-embedded-credentials.sh "$ARCHIVE_PATH/Products/Applications/Runner.app"
+
       - name: Package unsigned IPA
         run: |
           set -euo pipefail
