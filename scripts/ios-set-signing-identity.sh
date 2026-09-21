@@ -148,12 +148,15 @@ if [ -n "${IOS_PROFILE_APP:-}" ]; then
       my $profile = $id eq $base ? $app
                   : $id eq $base . ".NotificationService" ? $ext
                   : "";
-      $profile ? $head . $id . $tail . "\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = " . $profile . ";"
+      # Quote the value: a profile name usually contains spaces, and an
+      # unquoted value with spaces makes the whole project file unparseable
+      # ("The project 'Runner' is damaged").
+      $profile ? $head . $id . $tail . "\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"" . $profile . "\";"
                : $head . $id . $tail;
     }ge;
   ' "$PBXPROJ"
-  injected="$(grep -c 'PROVISIONING_PROFILE_SPECIFIER' "$PBXPROJ" || true)"
-  [ "$injected" -eq 6 ] || fail "expected 6 PROVISIONING_PROFILE_SPECIFIER entries (3 app + 3 extension), found $injected"
+  injected="$(grep -c 'PROVISIONING_PROFILE_SPECIFIER = "[^"]\+";' "$PBXPROJ" || true)"
+  [ "$injected" -eq 6 ] || fail "expected 6 quoted PROVISIONING_PROFILE_SPECIFIER entries (3 app + 3 extension), found $injected"
   echo "✓ manual signing profiles assigned ($injected targets)"
 fi
 
