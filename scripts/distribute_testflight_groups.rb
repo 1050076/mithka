@@ -141,6 +141,16 @@ module TestFlightGroupDistributor
       build_id = build.fetch("id")
       groups = @client.get("/apps/#{@app_id}/betaGroups", "limit" => "200").fetch("data")
       assign(build_id, find_group(groups, @internal_group, true))
+
+      if @external_group.to_s.empty?
+        # Internal-only distribution: no external group was configured, so skip
+        # Beta App Review instead of looking up a group that does not exist.
+        internal_state, = wait_for_distribution(build_id, await_external: false)
+        puts "Verified #{platform_name} #{@marketing_version} build #{@build_number}: " \
+             "Internal is #{internal_state}; External not requested."
+        return
+      end
+
       assign(build_id, find_group(groups, @external_group, false))
       review_state = submit_external_review(build_id)
       internal_state, external_state = wait_for_distribution(
@@ -329,7 +339,10 @@ if $PROGRAM_NAME == __FILE__
     end
   end.parse!
 
-  required = %i[key_id issuer_id key_path app_id build_number marketing_version platform internal_group external_group]
+  # external_group is optional: leaving it empty distributes to internal testers
+  # only, which is what a first build wants (external testers require Beta App
+  # Review and a pre-created external group).
+  required = %i[key_id issuer_id key_path app_id build_number marketing_version platform internal_group]
   missing = required.select { |key| options[key].to_s.empty? }
   raise TestFlightGroupDistributor::Error, "missing options: #{missing.join(', ')}" unless missing.empty?
   raise TestFlightGroupDistributor::Error, "build number must be numeric" unless options[:build_number].match?(/\A\d+\z/)
