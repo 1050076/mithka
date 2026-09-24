@@ -60,12 +60,13 @@ jobs:
       # Build tdjson.xcframework from verified upstream source + the vendored
       # patch set instead of downloading the author's prebuilt binary.
       TDJSON_FROM_SOURCE: '1'
-      # Deliberately credential-free: this fork is public, so a real api id/hash
-      # compiled in here would be extractable from the binary. The app asks the
-      # user for their own credentials on first run; ci_post_clone.sh only needs
-      # the values non-empty.
-      TELEGRAM_API_ID: '0'
-      TELEGRAM_API_HASH: 'not-configured'
+      # This channel hands the build to invited testers only (TestFlight), so the
+      # api id/hash are compiled in and the app does not ask for credentials on
+      # first run. The values come from repository secrets and never reach the
+      # repository itself; workflows that publish public releases keep the
+      # placeholder instead. The binary is asserted against the same choice.
+      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
       SENTRY_DSN: ''
       TGVOIP_WEBRTC_XCFRAMEWORK_URL: ${{ vars.TGVOIP_WEBRTC_XCFRAMEWORK_URL }}
       TGVOIP_WEBRTC_XCFRAMEWORK_SHA256: ${{ vars.TGVOIP_WEBRTC_XCFRAMEWORK_SHA256 }}
@@ -85,6 +86,24 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Require API credentials
+        run: |
+          set -euo pipefail
+          # Fail here instead of inside ci_post_clone.sh, where a missing value
+          # surfaces as an unrelated Dart syntax error. Only lengths are logged:
+          # the hash is a repository secret.
+          case "${TELEGRAM_API_ID}" in
+            [0-9][0-9][0-9][0-9][0-9][0-9]|[0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+            [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]|[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+            [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+            *) echo "::error::TELEGRAM_API_ID must be a 6-10 digit number (got ${#TELEGRAM_API_ID} chars)"; exit 1 ;;
+          esac
+          if [ -z "${TELEGRAM_API_HASH}" ]; then
+            echo "::error::TELEGRAM_API_HASH is empty — add it as a repository secret"
+            exit 1
+          fi
+          echo "✓ credentials available (id ${#TELEGRAM_API_ID} digits, hash ${#TELEGRAM_API_HASH} chars)"
 
       - name: Require identifier configuration
         run: |
@@ -289,7 +308,10 @@ jobs:
           test "$dsym_uuid" = "$binary_uuid"
           echo "ARCHIVE_PATH=$archive_path" >> "$GITHUB_ENV"
 
-      - name: Assert no build-time credentials in the binary
+      - name: Assert the binary carries this channel's credentials
+        env:
+          EXPECT_API_CREDENTIALS: '1'
+          EXPECTED_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: bash scripts/check-no-embedded-credentials.sh "$ARCHIVE_PATH/Products/Applications/Runner.app"
 
       - name: Verify iOS marketing version

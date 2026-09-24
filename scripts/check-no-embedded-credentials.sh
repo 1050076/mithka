@@ -39,6 +39,7 @@ fi
 
 status=0
 placeholder_seen=0
+credential_seen=0
 for snapshot in "${snapshots[@]}"; do
   echo "▸ scanning $snapshot"
   # grep -a reads the binary as text; no dependency on binutils `strings`.
@@ -49,12 +50,42 @@ for snapshot in "${snapshots[@]}"; do
     # by anyone, and the whole point of this check is that the value is secret.
     first_two="$(printf '%s\n' "$matches" | head -1 | cut -c1-2)"
     echo "::error::a Telegram api hash is compiled into $snapshot ($count match(es), first starts with ${first_two}…)"
+    credential_seen=1
     status=1
   fi
   if grep -a -q -F "$PLACEHOLDER" "$snapshot" 2>/dev/null; then
     placeholder_seen=1
   fi
 done
+
+# EXPECT_API_CREDENTIALS=1 inverts the assertion for channels that hand the app
+# to invited testers only (TestFlight, sideload artifacts) rather than
+# publishing it: there the credentials are meant to be compiled in so the app
+# does not ask on first run. Whichever way it goes, the binary is checked — the
+# point is that the build must match the channel it is going to.
+if [ "${EXPECT_API_CREDENTIALS:-0}" = "1" ]; then
+  if [ "$placeholder_seen" -eq 1 ]; then
+    echo "::error::$PLACEHOLDER found in $TARGET — this channel builds with real credentials, but the placeholder is still compiled in"
+    exit 1
+  fi
+  if [ -z "${EXPECTED_API_HASH:-}" ]; then
+    echo "::error::EXPECT_API_CREDENTIALS=1 requires EXPECTED_API_HASH to be set"
+    exit 1
+  fi
+  hash_seen=0
+  for snapshot in "${snapshots[@]}"; do
+    if grep -a -q -F "$EXPECTED_API_HASH" "$snapshot" 2>/dev/null; then
+      hash_seen=1
+    fi
+  done
+  if [ "$hash_seen" -ne 1 ]; then
+    echo "::error::the configured api hash is not present in $TARGET — the credentials were not baked into this build"
+    exit 1
+  fi
+  # The value is never echoed: only the fact that it was found.
+  echo "✓ credentials embedded as expected for this distribution channel"
+  exit 0
+fi
 
 if [ "$status" -ne 0 ]; then
   echo "::error::build carries embedded credentials — build with the placeholder values instead"
